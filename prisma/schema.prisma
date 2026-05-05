@@ -3,30 +3,22 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlserver"
 }
 
-enum UserRole {
-  ADMIN
-  ATTENDANT
-}
-
-enum ConversationStatus {
-  BOT
-  QUEUED
-  ACTIVE
-  CLOSED
-}
+// Enums are not supported natively by SQL Server connector in Prisma
+// We use String and handle logic in application
 
 model User {
   id            String    @id @default(cuid())
   name          String?
   email         String    @unique
   password      String
-  role          UserRole  @default(ATTENDANT)
+  role          String  @default("ATTENDANT")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -37,7 +29,8 @@ model Contact {
   id            String    @id @default(cuid())
   name          String?
   number        String    @unique
-  profilePic    String?
+  profilePic    String?   @db.NVarChar(Max)
+  notes         String?   @db.NVarChar(Max)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -47,7 +40,7 @@ model Contact {
 model Conversation {
   id              String           @id @default(cuid())
   contactId       String
-  status          ConversationStatus @default(BOT)
+  status          String @default("BOT")
   assignedToId    String?
   lastMessageAt   DateTime         @default(now())
   createdAt       DateTime         @default(now())
@@ -64,20 +57,22 @@ model Conversation {
 }
 
 model ChatbotFlow {
-  id          String        @id @default(cuid())
-  name        String
-  description String?
-  isActive    Boolean       @default(true)
-  isDefault   Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  nodes       ChatbotNode[]
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  triggerKeywords String?  @db.NVarChar(Max) // Palavras-chave separadas por vírgula
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  nodes           ChatbotNode[]
 }
 
 model ChatbotNode {
   id          String         @id @default(cuid())
   flowId      String
-  type        NodeType       @default(MESSAGE)
-  content     String         // The text to send
+  type        String       @default("MESSAGE")
+  content     String  @db.NVarChar(Max)       // The text to send
   
   flow        ChatbotFlow    @relation(fields: [flowId], references: [id], onDelete: Cascade)
   options     ChatbotOption[]
@@ -96,23 +91,24 @@ model ChatbotOption {
   node        ChatbotNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 }
 
-enum NodeType {
-  MESSAGE
-  QUESTION
-  MENU
-  TRANSFER
-}
+// NodeType enum removed
 
 model Message {
   id             String       @id @default(cuid())
   conversationId String
-  body           String       @db.Text
+  body           String  @db.NVarChar(Max)
   fromMe         Boolean      @default(false)
   timestamp      DateTime     @default(now())
   type           String       @default("chat") // chat, image, video, etc.
-  mediaUrl       String?
+  mediaUrl       String?   @db.NVarChar(Max)
   
   conversation   Conversation @relation(fields: [conversationId], references: [id])
+}
+
+model SystemSettings {
+  id        String   @id @default("global")
+  isBotEnabled Boolean @default(true)
+  updatedAt DateTime @updatedAt
 }
 
 model WhatsappInstance {
@@ -120,7 +116,7 @@ model WhatsappInstance {
   name        String   @unique
   instanceId  String   @unique
   status      String   @default("DISCONNECTED") // CONNECTED, DISCONNECTED, QRCODE
-  qrcode      String?  @db.Text
+  qrcode      String?   @db.NVarChar(Max)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

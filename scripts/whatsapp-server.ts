@@ -3,28 +3,48 @@ import cors from 'cors';
 import { whatsappService } from '../lib/whatsapp';
 import { prisma } from '../lib/prisma';
 
-async function startAllSessions() {
-  console.log('--- Iniciando Motores do WhatsApp ---');
+async function syncInstancesStatus() {
+  console.log('--- Sincronizando Status com Evolution API ---');
   
-  if (!process.env.DATABASE_URL) {
-    console.error('❌ ERRO: DATABASE_URL não definida no ambiente');
-    return;
-  }
-
   try {
-    // Get all instances
     const instances = await prisma.whatsappInstance.findMany();
-
-    console.log(`Encontradas ${instances.length} instâncias no total.`);
 
     for (const instance of instances) {
       try {
-        console.log(`Iniciando motor para: ${instance.name} (${instance.status})`);
-        // If it's already connected, Baileys will handle the session restoration
-        // If it's disconnected, we start it to get a new QR code if requested
-        await whatsappService.initSession(instance.instanceId);
+        const status = await whatsappService.getSessionStatus(instance.instanceId);
+        
+        // Se a instância existe na Evolution
+        if (status) {
+          const state = status.instance?.state || status.state;
+          const dbStatus = state === 'open' ? 'CONNECTED' : 'DISCONNECTED';
+          
+          if (dbStatus === 'CONNECTED') {
+            console.log(`[WhatsApp Server] Instância ${instance.name} online. Atualizando Webhook...`);
+            const result = await whatsappService.setWebhook(instance.instanceId);
+            if (result) {
+              console.log(`[WhatsApp Server] Webhook configurado com sucesso para ${instance.instanceId}`);
+            } else {
+              console.error(`[WhatsApp Server] FALHA ao configurar webhook para ${instance.instanceId}`);
+            }
+            
+            if (instance.status !== 'CONNECTED') {
+              await prisma.whatsappInstance.update({
+                where: { instanceId: instance.instanceId },
+                data: { status: 'CONNECTED', qrcode: null }
+              });
+            }
+          } else {
+            // Se existe mas não está conectada, precisamos garantir que temos o QR Code
+            console.log(`[WhatsApp Server] Instância ${instance.name} desconectada. Atualizando QR Code...`);
+            await whatsappService.initSession(instance.instanceId);
+          }
+        } else {
+          // Se não retornou status nenhum, tenta inicializar/conectar
+          console.log(`[WhatsApp Server] Instância ${instance.name} sem resposta do Evolution. Tentando inicializar...`);
+          await whatsappService.initSession(instance.instanceId);
+        }
       } catch (err) {
-        console.error(`Erro ao iniciar ${instance.name}:`, err);
+        console.error(`Erro ao sincronizar ${instance.name}:`, err);
       }
     }
   } catch (err) {
@@ -32,29 +52,11 @@ async function startAllSessions() {
   }
 }
 
-// Keep the process alive
-console.log('--- Servidor WhatsApp Ativo e Ouvindo ---');
-startAllSessions()
+// Keep the process alive and sync periodically
+console.log('--- Servidor WhatsApp (Evolution Proxy) Ativo ---');
+syncInstancesStatus()
   .then(() => {
-    // Heartbeat to keep process alive and check for new instances
-    setInterval(async () => {
-      try {
-        const instances = await prisma.whatsappInstance.findMany();
-        for (const instance of instances) {
-          // If we have a new instance or one that was disconnected, try to init
-          // Note: whatsappService.initSession should handle if it's already running
-          if (instance.status === 'DISCONNECTED' || instance.status === 'QRCODE') {
-            // Only init if we don't already have an active session for it
-            if (!whatsappService.getSession(instance.instanceId)) {
-              console.log(`[WhatsApp Server] Detectada instância pendente: ${instance.name}`);
-              await whatsappService.initSession(instance.instanceId);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[WhatsApp Server] Erro no loop de monitoramento:', err);
-      }
-    }, 10000); // Check every 10 seconds
+    setInterval(syncInstancesStatus, 30000); // Sincroniza a cada 30 segundos
   })
   .catch(console.error);
 
@@ -71,18 +73,18 @@ app.post('/send-message', async (req, res) => {
   }
 
   try {
-    console.log(`[WhatsApp Server] Enviando mensagem para ${number} via ${instanceId}`);
+    console.log(`[WhatsApp Server] Proxying mensagem para ${number} via Evolution API (${instanceId})`);
     const result = await whatsappService.sendMessage(instanceId, number, text);
     return res.json({ success: true, result });
   } catch (err: any) {
-    console.error(`[WhatsApp Server] Erro ao enviar mensagem:`, err.message);
+    console.error(`[WhatsApp Server] Erro ao enviar mensagem via Evolution:`, err.message);
     return res.status(500).json({ error: err.message });
   }
 });
 
 const API_PORT = 3002;
 app.listen(API_PORT, () => {
-  console.log(`--- API do WhatsApp Motor rodando na porta ${API_PORT} ---`);
+  console.log(`--- API do WhatsApp (Evolution Proxy) rodando na porta ${API_PORT} ---`);
 });
 
 // Prevent process from exiting on errors
@@ -93,3 +95,4 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
+

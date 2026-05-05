@@ -10,7 +10,9 @@ export function useSocket() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const s = io(SOCKET_URL);
+    // Usa o origin atual da página (Serveo) para evitar bloqueios de segurança
+    const url = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+    const s = io(url);
 
     s.on('connect', () => {
       console.log('Socket connected');

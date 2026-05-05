@@ -52,9 +52,16 @@ export async function POST(req: Request) {
       }
     });
 
+    const updateData: any = { lastMessageAt: new Date() };
+    if (!conversation.assignedToId || conversation.status !== 'ACTIVE') {
+      updateData.status = 'ACTIVE';
+      updateData.assignedToId = session.user.id;
+      updateData.isBotActive = false;
+    }
+
     await prisma.conversation.update({
       where: { id: conversationId },
-      data: { lastMessageAt: new Date() }
+      data: updateData
     });
 
     return NextResponse.json(message);

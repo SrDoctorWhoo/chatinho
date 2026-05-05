@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { evolutionService } from '@/lib/evolution';
 import { prisma } from '@/lib/prisma';
+import { whatsappService } from '@/lib/whatsapp';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
@@ -18,28 +18,31 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   try {
     const { name } = await req.json();
-    if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
-    // 1. Create in Evolution API
-    const evolutionData = await evolutionService.createInstance(name);
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    // 1. Cria na Evolution API primeiro
+    console.log(`[Evolution] Criando instância "${name}"...`);
+    const evolutionData = await whatsappService.createInstance(name);
     
-    // 2. Save in DB
+    // 2. Salva no banco local
     const instance = await prisma.whatsappInstance.create({
       data: {
-        name,
-        instanceId: evolutionData.instance.instanceId,
+        name: name,
+        instanceId: name,
         status: 'DISCONNECTED',
       }
     });
 
     return NextResponse.json(instance);
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Failed to create instance' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Error creating instance:', error);
+    return NextResponse.json({ 
+      error: error.message || 'Failed to create instance' 
+    }, { status: 500 });
   }
 }

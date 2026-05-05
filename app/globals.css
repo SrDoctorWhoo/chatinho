@@ -3,31 +3,31 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
-  --primary: #3b82f6;
-  --primary-glow: rgba(59, 130, 246, 0.5);
+  --primary: #10b981;
+  --primary-glow: rgba(16, 185, 129, 0.3);
   --secondary: #64748b;
-  --accent: #8b5cf6;
-  --card: rgba(255, 255, 255, 0.8);
-  --border: rgba(226, 232, 240, 0.8);
-  --selection: rgba(59, 130, 246, 0.1);
+  --accent: #06b6d4;
+  --card: rgba(255, 255, 255, 0.4);
+  --border: rgba(255, 255, 255, 0.5);
+  --selection: rgba(16, 185, 129, 0.1);
 }
 
 .dark {
   --background: #020617;
   --foreground: #f8fafc;
-  --primary: #60a5fa;
-  --primary-glow: rgba(96, 165, 250, 0.3);
+  --primary: #10b981;
+  --primary-glow: rgba(16, 185, 129, 0.2);
   --secondary: #94a3b8;
-  --accent: #a78bfa;
-  --card: rgba(15, 23, 42, 0.8);
-  --border: rgba(30, 41, 59, 0.8);
-  --selection: rgba(96, 165, 250, 0.1);
+  --accent: #06b6d4;
+  --card: rgba(15, 23, 42, 0.3);
+  --border: rgba(255, 255, 255, 0.1);
+  --selection: rgba(16, 185, 129, 0.1);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-plus-jakarta), sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
@@ -35,10 +35,36 @@ body {
 /* Premium Glassmorphism */
 .glass-panel {
   background: var(--card);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid var(--border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+}
+
+.premium-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.05),
+    transparent
+  );
+  transform: skewX(-25deg);
+  transition: 0.75s;
+}
+
+.premium-card:hover::before {
+  left: 150%;
 }
 
 /* Custom Scrollbar */

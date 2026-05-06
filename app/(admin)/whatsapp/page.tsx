@@ -21,18 +21,31 @@ import { cn } from '@/lib/utils';
 
 export default function WhatsappPage() {
   const [instances, setInstances] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState('');
+  const [newIntegration, setNewIntegration] = useState('WHATSAPP-BAILEYS');
+  const [newToken, setNewToken] = useState('');
+  const [newPhoneNumberId, setNewPhoneNumberId] = useState('');
+  const [newWabaId, setNewWabaId] = useState('');
+  const [newNumber, setNewNumber] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [configModal, setConfigModal] = useState<{ isOpen: boolean; instance: any | null }>({
+    isOpen: false,
+    instance: null
+  });
   const [qrModal, setQrModal] = useState<{ isOpen: boolean; qr: string | null; instanceId: string | null }>({
     isOpen: false,
     qr: null,
     instanceId: null
   });
+  const [metaConfig, setMetaConfig] = useState({ token: '', phoneNumberId: '', wabaId: '' });
+  const [isSavingMeta, setIsSavingMeta] = useState(false);
 
-  const fetchInstances = async () => {
+  const fetchInstances = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await fetch('/api/whatsapp/instances');
       const data = await res.json();
@@ -40,7 +53,7 @@ export default function WhatsappPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -49,32 +62,66 @@ export default function WhatsappPage() {
     try {
       const res = await fetch('/api/whatsapp/instances/sync', { method: 'POST' });
       if (res.ok) {
-        await fetchInstances();
+        await fetchInstances(false);
+      } else {
+        const errData = await res.json();
+        alert(`Erro na sincronização: ${errData.error || 'Falha ao conectar com a Evolution API'}`);
       }
     } catch (err) {
       console.error('Sync failed:', err);
+      alert('Erro de rede ao tentar sincronizar.');
     } finally {
       setSyncing(false);
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch('/api/departments');
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch departments:', err);
+    }
+  };
+
   useEffect(() => {
-    fetchInstances();
+    const init = async () => {
+      await Promise.all([fetchInstances(), fetchDepartments()]);
+      // Auto-sync on first load to ensure we have the latest from Evolution
+      handleSync();
+    };
+    init();
   }, []);
 
   const handleCreateInstance = async () => {
     if (!newInstanceName) return;
     setIsCreating(true);
     try {
+      const payload: any = { name: newInstanceName, integration: newIntegration };
+      if (newIntegration === 'WHATSAPP-BUSINESS') {
+        payload.token = newToken;
+        payload.phoneNumberId = newPhoneNumberId;
+        payload.wabaId = newWabaId;
+        payload.number = newNumber;
+      }
       const res = await fetch('/api/whatsapp/instances', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newInstanceName })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         setNewInstanceName('');
+        setNewIntegration('WHATSAPP-BAILEYS');
+        setNewToken('');
+        setNewPhoneNumberId('');
+        setNewWabaId('');
+        setNewNumber('');
         setShowCreateModal(false);
         fetchInstances();
+      } else {
+        const err = await res.json();
+        alert(`Erro: ${err.error}`);
       }
     } catch (err) {
       console.error(err);
@@ -82,6 +129,48 @@ export default function WhatsappPage() {
       setIsCreating(false);
     }
   };
+
+  const handleUpdateInstance = async (id: string, data: any) => {
+    try {
+      const res = await fetch(`/api/whatsapp/instances/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        fetchInstances(false);
+        if (configModal.isOpen && configModal.instance?.id === id) {
+          const updated = await res.json();
+          setConfigModal(prev => ({ ...prev, instance: updated }));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveMeta = async () => {
+    if (!configModal.instance) return;
+    setIsSavingMeta(true);
+    try {
+      await handleUpdateInstance(configModal.instance.id, metaConfig);
+      alert('Configurações da Meta salvas com sucesso!');
+    } catch (err) {
+      alert('Erro ao salvar configurações.');
+    } finally {
+      setIsSavingMeta(false);
+    }
+  };
+
+  useEffect(() => {
+    if (configModal.isOpen && configModal.instance) {
+      setMetaConfig({
+        token: configModal.instance.token || '',
+        phoneNumberId: configModal.instance.phoneNumberId || '',
+        wabaId: configModal.instance.wabaId || ''
+      });
+    }
+  }, [configModal.isOpen, configModal.instance]);
 
   const handleDeleteInstance = async (id: string, name: string) => {
     if (!confirm(`Tem certeza que deseja remover a instância "${name}"? Isso também a removerá da Evolution API.`)) return;
@@ -208,44 +297,107 @@ export default function WhatsappPage() {
               
               <div className="relative flex items-start justify-between mb-8">
                 <div className="space-y-4">
-                  <div className={cn(
-                    "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500",
-                    instance.status === 'CONNECTED' 
-                      ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" 
-                      : "bg-white/5 text-slate-500"
-                  )}>
-                    <Smartphone size={32} strokeWidth={2.5} />
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500",
+                      instance.status === 'CONNECTED' 
+                        ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" 
+                        : "bg-white/5 text-slate-500"
+                    )}>
+                      <Smartphone size={32} strokeWidth={2.5} />
+                    </div>
+
+                    <div className={cn(
+                      "px-4 py-2 rounded-full text-[10px] font-black flex items-center gap-2 border shadow-lg backdrop-blur-md",
+                      instance.status === 'CONNECTED' 
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                        : instance.status === 'QRCODE'
+                        ? "bg-orange-500/10 text-orange-400 border-orange-500/20 animate-pulse"
+                        : "bg-red-500/10 text-red-400 border-red-500/20"
+                    )}>
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        instance.status === 'CONNECTED' ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : instance.status === 'QRCODE' ? "bg-orange-400" : "bg-red-400"
+                      )} />
+                      {instance.status === 'CONNECTED' ? 'ONLINE' : instance.status === 'QRCODE' ? 'AGUARDANDO SCAN' : 'OFFLINE'}
+                    </div>
                   </div>
                   
-                  <div className="space-y-1">
-                    <h3 className="text-2xl font-black text-white tracking-tighter leading-none">
-                      {instance.name}
-                    </h3>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-2xl font-black text-white tracking-tighter leading-none">
+                          {instance.name}
+                        </h3>
+                        <button 
+                          onClick={() => handleUpdateInstance(instance.id, { isActive: !instance.isActive })}
+                          className={cn(
+                            "w-10 h-5 rounded-full relative transition-all duration-300",
+                            instance.isActive ? "bg-emerald-500" : "bg-white/10"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-300",
+                            instance.isActive ? "right-1" : "left-1"
+                          )} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {instance.number && (
+                          <p className="text-emerald-400 font-bold text-sm tracking-tight">
+                            +{instance.number}
+                          </p>
+                        )}
+                        <span className={cn(
+                          "text-[9px] font-black px-2 py-0.5 rounded-md border",
+                          instance.integration === 'WHATSAPP-BUSINESS' ? "text-blue-400 border-blue-500/20 bg-blue-500/5" : "text-slate-500 border-white/5 bg-white/5"
+                        )}>
+                          {instance.integration === 'WHATSAPP-BUSINESS' ? 'OFICIAL (CLOUD)' : 'WEB (BAILEYS)'}
+                        </span>
+                        <span className={cn(
+                          "text-[9px] font-black px-2 py-0.5 rounded-md border",
+                          instance.isActive ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" : "text-slate-500 border-white/5 bg-white/5"
+                        )}>
+                          {instance.isActive ? 'ATIVADA' : 'PAUSADA'}
+                        </span>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                       <ShieldCheck size={14} className="text-emerald-500" />
                       ID: {instance.instanceId}
                     </div>
-                  </div>
                 </div>
 
-                <div className={cn(
-                  "px-4 py-2 rounded-full text-[10px] font-black flex items-center gap-2 border shadow-lg backdrop-blur-md",
-                  instance.status === 'CONNECTED' 
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                    : instance.status === 'QRCODE'
-                    ? "bg-orange-500/10 text-orange-400 border-orange-500/20 animate-pulse"
-                    : "bg-red-500/10 text-red-400 border-red-500/20"
-                )}>
-                  <div className={cn(
-                    "w-2 h-2 rounded-full",
-                    instance.status === 'CONNECTED' ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : instance.status === 'QRCODE' ? "bg-orange-400" : "bg-red-400"
-                  )} />
-                  {instance.status === 'CONNECTED' ? 'ONLINE' : instance.status === 'QRCODE' ? 'AGUARDANDO SCAN' : 'OFFLINE'}
-                </div>
+                <button 
+                  onClick={() => setConfigModal({ isOpen: true, instance })}
+                  className="p-3 rounded-2xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all border border-white/5"
+                >
+                  <RefreshCw size={20} className="hover:rotate-180 transition-transform duration-500" />
+                </button>
+              </div>
+
+              {/* Department Badges */}
+              <div className="flex flex-wrap gap-2 mb-8">
+                {instance.departments?.length > 0 ? (
+                  instance.departments.map((dept: any) => (
+                    <span key={dept.id} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      {dept.name}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest italic">
+                    Nenhum departamento vinculado
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mt-auto">
-                {instance.status !== 'CONNECTED' ? (
+                {instance.status === 'CONNECTED' ? (
+                  <div className="col-span-2 py-4 px-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
+                    <span className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                      <Clock size={14} /> Conexão Estável
+                    </span>
+                  </div>
+                ) : instance.integration !== 'WHATSAPP-BUSINESS' && (
                   <button 
                     onClick={() => handleConnect(instance)}
                     className="col-span-2 group/btn flex items-center justify-center gap-3 py-4.5 bg-white text-slate-950 font-black rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-white/5"
@@ -253,29 +405,21 @@ export default function WhatsappPage() {
                     <QrCode size={20} />
                     Conectar Agora
                   </button>
-                ) : (
-                  <div className="col-span-2 py-4 px-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
-                    <span className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                      <Clock size={14} /> Conexão Estável
-                    </span>
-                    <div className="flex gap-2">
-                       <button className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all">
-                        <ExternalLink size={16} />
-                      </button>
-                    </div>
-                  </div>
                 )}
                 
                 <button 
                   onClick={() => handleDeleteInstance(instance.id, instance.name)}
-                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-white/5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 font-bold rounded-2xl transition-all"
+                  className={cn(
+                    "flex items-center justify-center gap-2 py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs hover:bg-red-500/10 hover:text-red-400 transition-all border border-white/5 active:scale-95",
+                    (instance.integration === 'WHATSAPP-BUSINESS' || instance.status === 'CONNECTED') ? "col-span-1" : "col-span-1"
+                  )}
                 >
                   <Trash2 size={18} />
                   Remover
                 </button>
                 <button 
-                  onClick={fetchInstances}
-                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-white/5 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 font-bold rounded-2xl transition-all"
+                  onClick={() => handleSync()}
+                  className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs hover:bg-white/10 hover:text-white transition-all border border-white/5 active:scale-95"
                 >
                   <RefreshCw size={18} />
                   Status
@@ -290,48 +434,138 @@ export default function WhatsappPage() {
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-300" onClick={() => !isCreating && setShowCreateModal(false)} />
-          <div className="relative w-full max-w-md bg-slate-900 rounded-[3rem] shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden animate-in zoom-in-95 duration-500">
-            <div className="p-12">
-              <div className="flex items-center justify-between mb-10">
-                <h2 className="text-3xl font-black text-white tracking-tighter">Nova <span className="text-emerald-400">Instância</span></h2>
+          <div className="relative w-full max-w-lg bg-slate-900 rounded-[2rem] shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden animate-in zoom-in-95 duration-500 max-h-[90vh] overflow-y-auto">
+            <div className="p-10">
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-black text-white tracking-tighter">Nova <span className="text-emerald-400">Instância</span></h2>
                 <button 
                   onClick={() => setShowCreateModal(false)}
                   className="p-2 text-slate-500 hover:text-white transition-colors"
                 >
-                  <X size={28} />
+                  <X size={24} />
                 </button>
               </div>
 
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Identificador da Conta</label>
+              <div className="space-y-6">
+                {/* Nome */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Nome da Instância <span className="text-red-400">*</span>
+                  </label>
                   <input
                     type="text"
                     value={newInstanceName}
                     onChange={(e) => setNewInstanceName(e.target.value)}
-                    className="block w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500/50 outline-none transition-all font-bold text-white placeholder-slate-600"
-                    placeholder="Ex: Comercial, Suporte..."
+                    className="block w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all font-bold text-white placeholder-slate-600"
+                    placeholder="Ex: OABGO-CHATINHO"
                     disabled={isCreating}
                   />
                 </div>
-                
-                <div className="p-6 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
-                  <p className="text-xs text-emerald-400 leading-relaxed font-bold">
-                    <span className="uppercase tracking-widest text-[9px] block mb-1 opacity-50">Dica Profissional</span>
-                    Use nomes curtos e sem espaços para melhor organização na sua infraestrutura de atendimento.
-                  </p>
+
+                {/* Tipo de Integração */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                    Canal <span className="text-red-400">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewIntegration('WHATSAPP-BAILEYS')}
+                      className={cn(
+                        "py-3 px-4 rounded-xl border transition-all text-center",
+                        newIntegration === 'WHATSAPP-BAILEYS'
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                          : "bg-white/5 border-white/5 text-slate-500 hover:border-white/10"
+                      )}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest">WhatsApp Web</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewIntegration('WHATSAPP-BUSINESS')}
+                      className={cn(
+                        "py-3 px-4 rounded-xl border transition-all text-center",
+                        newIntegration === 'WHATSAPP-BUSINESS'
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                          : "bg-white/5 border-white/5 text-slate-500 hover:border-white/10"
+                      )}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest">Cloud API</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="pt-4">
-                  <button 
-                    onClick={handleCreateInstance}
-                    disabled={isCreating || !newInstanceName}
-                    className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-30 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-3 text-lg"
-                  >
-                    {isCreating ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={24} />}
-                    {isCreating ? 'Provisionando...' : 'Confirmar Criação'}
-                  </button>
-                </div>
+                {/* Campos Cloud API */}
+                {newIntegration === 'WHATSAPP-BUSINESS' && (
+                  <div className="space-y-4 p-5 bg-blue-500/5 rounded-xl border border-blue-500/10">
+                    <h4 className="text-blue-400 font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
+                      <Zap size={14} /> Configuração Cloud API
+                    </h4>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                        Token <span className="text-red-400">*</span>
+                      </label>
+                      <textarea
+                        value={newToken}
+                        onChange={(e) => setNewToken(e.target.value)}
+                        className={cn(
+                          "block w-full px-4 py-3 bg-white/5 border rounded-lg focus:border-blue-500/50 outline-none transition-all font-mono text-xs text-white placeholder-slate-600 min-h-[60px] resize-none",
+                          !newToken && "border-white/10",
+                          newToken && "border-blue-500/20"
+                        )}
+                        placeholder="Token permanente da Meta (EA...)"
+                        disabled={isCreating}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                        Número <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newNumber}
+                        onChange={(e) => setNewNumber(e.target.value)}
+                        className={cn(
+                          "block w-full px-4 py-3 bg-white/5 border rounded-lg focus:border-blue-500/50 outline-none transition-all font-bold text-xs text-white placeholder-slate-600",
+                          !newNumber && "border-white/10",
+                          newNumber && "border-blue-500/20"
+                        )}
+                        placeholder="Com código do país: 556232382025"
+                        disabled={isCreating}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                        Business ID <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newWabaId}
+                        onChange={(e) => setNewWabaId(e.target.value)}
+                        className={cn(
+                          "block w-full px-4 py-3 bg-white/5 border rounded-lg focus:border-blue-500/50 outline-none transition-all font-bold text-xs text-white placeholder-slate-600",
+                          !newWabaId && "border-white/10",
+                          newWabaId && "border-blue-500/20"
+                        )}
+                        placeholder="ID da conta Business (WABA)"
+                        disabled={isCreating}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Botão */}
+                <button 
+                  onClick={handleCreateInstance}
+                  disabled={isCreating || !newInstanceName || (newIntegration === 'WHATSAPP-BUSINESS' && (!newToken || !newNumber || !newWabaId))}
+                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-slate-950 font-black rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-3"
+                >
+                  {isCreating ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
+                  {isCreating ? 'Criando...' : 'Criar Instância'}
+                </button>
               </div>
             </div>
           </div>
@@ -342,7 +576,7 @@ export default function WhatsappPage() {
       {qrModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl animate-in fade-in duration-500" />
-          <div className="relative w-full max-w-sm bg-slate-900 rounded-[4rem] shadow-2xl border border-white/5 overflow-hidden animate-in zoom-in-95 duration-700">
+          <div className="relative w-full max-sm bg-slate-900 rounded-[4rem] shadow-2xl border border-white/5 overflow-hidden animate-in zoom-in-95 duration-700">
             <div className="p-12 flex flex-col items-center">
               <div className="w-full flex justify-end absolute top-8 right-10">
                 <button 
@@ -394,6 +628,179 @@ export default function WhatsappPage() {
               <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
                 <ShieldCheck size={14} className="text-emerald-500/50" /> Secure Protocol v2.4
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Config Modal */}
+      {configModal.isOpen && configModal.instance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-300" onClick={() => setConfigModal({ isOpen: false, instance: null })} />
+          <div className="relative w-full max-w-xl bg-slate-900 rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden animate-in zoom-in-95 duration-500">
+            <div className="p-12">
+              <div className="flex items-center justify-between mb-10">
+                <div className="space-y-1">
+                  <h2 className="text-3xl font-black text-white tracking-tighter">Configurar <span className="text-emerald-400">Instância</span></h2>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{configModal.instance.name}</p>
+                </div>
+                <button 
+                  onClick={() => setConfigModal({ isOpen: false, instance: null })}
+                  className="p-2 text-slate-500 hover:text-white transition-colors"
+                >
+                  <X size={28} />
+                </button>
+              </div>
+
+              <div className="space-y-10">
+                {/* Active Toggle */}
+                <div className="flex items-center justify-between p-6 bg-white/[0.03] border border-white/5 rounded-[2rem]">
+                  <div className="space-y-1">
+                    <h4 className="text-white font-black text-sm uppercase tracking-tight">Status da Operação</h4>
+                    <p className="text-xs text-slate-500 font-medium">Ative ou desative o processamento de mensagens desta instância.</p>
+                  </div>
+                  <button 
+                    onClick={() => handleUpdateInstance(configModal.instance.id, { isActive: !configModal.instance.isActive })}
+                    className={cn(
+                      "w-14 h-7 rounded-full relative transition-all duration-300",
+                      configModal.instance.isActive ? "bg-emerald-500" : "bg-white/10"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-1 w-5 h-5 rounded-full bg-white transition-all duration-300 shadow-md",
+                      configModal.instance.isActive ? "right-1" : "left-1"
+                    )} />
+                  </button>
+                </div>
+
+                {/* Integration Type */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Tipo de Integração</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleUpdateInstance(configModal.instance.id, { integration: 'WHATSAPP-BAILEYS' })}
+                      className={cn(
+                        "p-4 rounded-2xl border transition-all text-center",
+                        configModal.instance.integration === 'WHATSAPP-BAILEYS' 
+                          ? "bg-slate-500/10 border-slate-500/30 text-slate-300" 
+                          : "bg-white/5 border-white/5 text-slate-500 hover:border-white/10"
+                      )}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest">Web (Baileys)</span>
+                    </button>
+                    <button
+                      onClick={() => handleUpdateInstance(configModal.instance.id, { integration: 'WHATSAPP-BUSINESS' })}
+                      className={cn(
+                        "p-4 rounded-2xl border transition-all text-center",
+                        configModal.instance.integration === 'WHATSAPP-BUSINESS' 
+                          ? "bg-blue-500/10 border-blue-500/30 text-blue-400" 
+                          : "bg-white/5 border-white/5 text-slate-500 hover:border-white/10"
+                      )}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest">Oficial (Cloud)</span>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Meta Cloud API Configuration */}
+                {configModal.instance.integration === 'WHATSAPP-BUSINESS' && (
+                  <div className="space-y-6 p-8 bg-blue-500/5 rounded-[2rem] border border-blue-500/10">
+                    <div className="space-y-1 mb-4">
+                      <h4 className="text-blue-400 font-black text-sm uppercase tracking-tight flex items-center gap-2">
+                        <Zap size={18} /> Configurações da Meta
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium">Insira as credenciais do seu aplicativo no Meta Developers.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Token de Acesso Permanente</label>
+                        <textarea
+                          value={metaConfig.token}
+                          onChange={(e) => setMetaConfig(prev => ({ ...prev, token: e.target.value }))}
+                          className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-blue-500/50 outline-none transition-all font-mono text-xs text-white placeholder-slate-600 min-h-[80px]"
+                          placeholder="Começa com EA..."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Phone Number ID</label>
+                          <input
+                            type="text"
+                            value={metaConfig.phoneNumberId}
+                            onChange={(e) => setMetaConfig(prev => ({ ...prev, phoneNumberId: e.target.value }))}
+                            className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-blue-500/50 outline-none transition-all font-bold text-xs text-white placeholder-slate-600"
+                            placeholder="Ex: 574090152446131"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">WABA ID (Business ID)</label>
+                          <input
+                            type="text"
+                            value={metaConfig.wabaId}
+                            onChange={(e) => setMetaConfig(prev => ({ ...prev, wabaId: e.target.value }))}
+                            className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-blue-500/50 outline-none transition-all font-bold text-xs text-white placeholder-slate-600"
+                            placeholder="Ex: 373396622534187"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleSaveMeta}
+                        disabled={isSavingMeta}
+                        className="w-full py-3 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-slate-950 font-black rounded-xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
+                      >
+                        {isSavingMeta ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                        {isSavingMeta ? 'Salvando...' : 'Salvar Configurações da Meta'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {/* Department Selection */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Departamentos Vinculados</h4>
+                    <span className="text-[10px] font-bold text-emerald-400">{configModal.instance.departments?.length || 0} selecionados</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    {departments.map((dept) => {
+                      const isSelected = configModal.instance.departments?.some((d: any) => d.id === dept.id);
+                      return (
+                        <button
+                          key={dept.id}
+                          onClick={() => {
+                            const currentIds = configModal.instance.departments?.map((d: any) => d.id) || [];
+                            const newIds = isSelected 
+                              ? currentIds.filter((id: string) => id !== dept.id)
+                              : [...currentIds, dept.id];
+                            handleUpdateInstance(configModal.instance.id, { departmentIds: newIds });
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 text-left",
+                            isSelected 
+                              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
+                              : "bg-white/5 border-white/5 text-slate-400 hover:border-white/10"
+                          )}
+                        >
+                          <span className="text-xs font-black uppercase tracking-tight">{dept.name}</span>
+                          {isSelected && <CheckCircle2 size={16} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/10">
+                  <p className="text-[10px] text-blue-400 leading-relaxed font-bold flex gap-3">
+                    <ShieldCheck size={24} className="shrink-0" />
+                    <span>
+                      Esta instância processará mensagens apenas para os departamentos selecionados acima. Se nenhum for selecionado, ela não encaminhará mensagens para o Chatinho.
+                    </span>
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

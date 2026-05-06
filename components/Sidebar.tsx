@@ -15,19 +15,24 @@ import {
   Crown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { signOut } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: MessageSquare, label: 'Conversas', href: '/conversations' },
-  { icon: Smartphone, label: 'WhatsApp', href: '/whatsapp' },
-  { icon: GitBranch, label: 'Fluxos (Bot)', href: '/flows' },
-  { icon: Users, label: 'Atendentes', href: '/attendants' },
-  { icon: Settings, label: 'Configurações', href: '/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'MANAGER', 'ATTENDANT'] },
+  { icon: MessageSquare, label: 'Conversas', href: '/conversations', roles: ['ADMIN', 'MANAGER', 'ATTENDANT'] },
+  { icon: Smartphone, label: 'WhatsApp', href: '/whatsapp', roles: ['ADMIN'] },
+  { icon: GitBranch, label: 'Fluxos (Bot)', href: '/flows', roles: ['ADMIN', 'MANAGER'] },
+  { icon: Users, label: 'Atendentes', href: '/attendants', roles: ['ADMIN', 'MANAGER'] },
+  { icon: Settings, label: 'Configurações', href: '/settings', roles: ['ADMIN', 'MANAGER'] },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
+  const filteredItems = menuItems.filter(item => 
+    item.roles.includes(session?.user?.role || 'ATTENDANT')
+  );
 
   return (
     <aside className="w-72 h-screen flex flex-col bg-slate-950 text-slate-400 border-r border-white/5 relative overflow-hidden">
@@ -46,7 +51,7 @@ export function Sidebar() {
       </div>
 
       <nav className="relative z-10 flex-1 px-4 space-y-1.5">
-        {menuItems.map((item, index) => {
+        {filteredItems.map((item, index) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <motion.div
@@ -104,7 +109,7 @@ export function Sidebar() {
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-[10px]">
-                ADM
+                {session?.user?.role === 'ADMIN' ? 'ADM' : session?.user?.role === 'MANAGER' ? 'MGR' : 'ATD'}
               </div>
               <motion.div 
                 animate={{ scale: [1, 1.2, 1] }}
@@ -113,8 +118,10 @@ export function Sidebar() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-100 truncate">Administrador</p>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] truncate">Master Access</p>
+              <p className="text-sm font-bold text-slate-100 truncate">{session?.user?.name || 'Usuário'}</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] truncate">
+                {session?.user?.role === 'ADMIN' ? 'Administrador' : session?.user?.role === 'MANAGER' ? 'Gerente' : 'Atendente'}
+              </p>
             </div>
           </div>
         </div>

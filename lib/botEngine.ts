@@ -25,69 +25,70 @@ export const botEngine = {
 
       let currentFlowId = conversation.currentFlowId;
       let currentStepId = conversation.currentStepId;
+      const normalizedInput = (text || '').trim().toLowerCase();
 
-      // 2. Se não tem fluxo, tenta achar o fluxo padrão ou o primeiro ativo
-      if (!currentFlowId) {
-        let defaultFlow = await prisma.chatbotFlow.findFirst({
-          where: { isActive: true, isDefault: true },
-          include: {
-            nodes: {
-              orderBy: { id: 'asc' },
-              include: { options: true }
-            }
-          }
-        });
-
-        // Se não tem padrão, pega o primeiro ativo que encontrar
-        if (!defaultFlow) {
-          defaultFlow = await prisma.chatbotFlow.findFirst({
-            where: { isActive: true },
-            include: {
-              nodes: {
-                orderBy: { id: 'asc' },
-                include: { options: true }
-              }
-            }
-          });
+      // 🔍 2. Verificação de Gatilho (Trigger) - Pode reiniciar o fluxo a qualquer momento
+      // Busca todos os fluxos ativos que podem ser usados por esta instância
+      const activeFlows = await prisma.chatbotFlow.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { instances: { some: { instanceId: instanceName } } },
+            { instances: { none: {} } }
+          ]
+        },
+        include: {
+          nodes: { orderBy: { id: 'asc' }, include: { options: true } }
         }
+      });
 
-        if (!defaultFlow || !defaultFlow.nodes || defaultFlow.nodes.length === 0) {
-          console.log('[BotEngine] Nenhum fluxo ativo com nós encontrado.');
-          return;
-        }
+      // Tenta encontrar um fluxo que tenha a palavra-chave nos gatilhos
+      let targetFlow = activeFlows.find(f => {
+        const keywords = f.triggerKeywords?.split(',').map(k => k.trim().toLowerCase()).filter(k => k !== '') || [];
+        return keywords.includes(normalizedInput);
+      });
 
-        // 🔍 Verificação de Gatilho (Trigger)
-        const normalizedInput = (text || '').trim().toLowerCase();
-        console.log(`[BotEngine] Buscando fluxo para gatilho: "${normalizedInput}"`);
-        const keywords = defaultFlow.triggerKeywords?.split(',').map(k => k.trim().toLowerCase()).filter(k => k !== '') || [];
-        console.log(`[BotEngine] Gatilhos configurados no fluxo "${defaultFlow.name}": [${keywords.join(', ')}]`);
-
-        // Se tem palavras-chave definidas e a mensagem não bate com nenhuma, ignora
-        if (keywords.length > 0 && !keywords.includes(normalizedInput)) {
-          console.log(`[BotEngine] ✋ Ignorando: "${text}" não bate com nenhum gatilho.`);
-          return;
-        }
-
-        console.log(`[BotEngine] ✅ Gatilho aceito! Iniciando fluxo: ${defaultFlow.name}`);
-
-        const firstNode = defaultFlow.nodes[0];
-        currentFlowId = defaultFlow.id;
-        currentStepId = firstNode.id;
-
-        // Atualiza a conversa para indicar que entrou no bot e ativá-lo
+      if (targetFlow) {
+        console.log(`[BotEngine] ✅ Gatilho detectado ("${normalizedInput}"). Iniciando/Reiniciando fluxo: ${targetFlow.name}`);
+        const firstNode = targetFlow.nodes[0];
+        
+        // Atualiza a conversa
         await prisma.conversation.update({
-          where: { id: conversation.id },
+          where: { id: conversationId },
           data: {
-            currentFlowId,
-            currentStepId,
+            currentFlowId: targetFlow.id,
+            currentStepId: firstNode.id,
             status: 'BOT',
             isBotActive: true
           }
         });
 
-        // Executa o primeiro nó
-        await this.executeNode(firstNode, conversation.id, instanceName, remoteJid);
-        return;
+        return this.executeNode(firstNode, conversationId, instanceName, remoteJid);
+      }
+
+      // 3. Se não tem fluxo em andamento e não pegou gatilho, tenta o fluxo padrão (isDefault)
+      if (!currentFlowId) {
+        let defaultFlow = activeFlows.find(f => f.isDefault) || activeFlows.find(f => !f.triggerKeywords || f.triggerKeywords.trim() === '');
+
+        if (!defaultFlow || !defaultFlow.nodes || defaultFlow.nodes.length === 0) {
+          console.log('[BotEngine] Nenhum fluxo correspondente ou padrão encontrado.');
+          return;
+        }
+
+        console.log(`[BotEngine] ✅ Usando fluxo padrão: ${defaultFlow.name}`);
+        const firstNode = defaultFlow.nodes[0];
+        
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: {
+            currentFlowId: defaultFlow.id,
+            currentStepId: firstNode.id,
+            status: 'BOT',
+            isBotActive: true
+          }
+        });
+
+        return this.executeNode(firstNode, conversationId, instanceName, remoteJid);
       }
 
       // 3. Se já tem fluxo, busca o nó atual
@@ -106,7 +107,7 @@ export const botEngine = {
       }
 
       // 4. Avalia a resposta do usuário baseada no tipo de nó atual
-      if (currentNode.type === 'MENU') {
+      if (currentNode.type === 'MENU' || currentNode.type === 'LIST') {
         const options = currentNode.options;
         const normalizedText = (text || '').trim().toLowerCase();
         
@@ -148,26 +149,64 @@ export const botEngine = {
   async executeNode(node: any, conversationId: string, instanceName: string, remoteJid: string) {
     if (!node) return;
 
-    if (node.type === 'MESSAGE' || node.type === 'MENU') {
+    if (node.type === 'MESSAGE' || node.type === 'MENU' || node.type === 'LIST') {
       // Envia a mensagem do nó
       if (node.content) {
         let finalContent = node.content;
+
+        // 📝 Substituição de Variáveis Dinâmicas
+        const conversation = await prisma.conversation.findUnique({
+          where: { id: conversationId },
+          include: { contact: true }
+        });
         
-        // Se for um menu, adiciona as opções formatadas no final
-        if (node.type === 'MENU' && node.options && node.options.length > 0) {
+        if (conversation?.contact?.name) {
+          finalContent = finalContent.replace(/\{\{nome\}\}/gi, conversation.contact.name);
+          finalContent = finalContent.replace(/\{\{name\}\}/gi, conversation.contact.name);
+        }
+        
+        // Se for um nó de LISTA (WhatsApp List Message)
+        if (node.type === 'LIST' && node.options && node.options.length > 0) {
+          try {
+            await whatsappService.sendListMessage(instanceName, remoteJid, {
+              title: "Opções Disponíveis",
+              description: node.content,
+              buttonText: "Ver Opções",
+              footer: "Escolha uma opção acima",
+              sections: [{
+                title: "Menu principal",
+                rows: node.options.map((opt: any) => ({
+                  title: opt.label,
+                  description: `Escolha ${opt.label}`,
+                  rowId: opt.keyword
+                }))
+              }]
+            });
+          } catch (err) {
+            // Fallback para menu texto se der erro na lista
+            const optionsText = node.options
+              .map((opt: any) => `*${opt.keyword}* - ${opt.label}`)
+              .join('\n');
+            finalContent = `${node.content}\n\n${optionsText}`;
+            await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
+          }
+        } 
+        // Se for um menu de TEXTO padrão
+        else if (node.type === 'MENU' && node.options && node.options.length > 0) {
           const optionsText = node.options
             .map((opt: any) => `*${opt.keyword}* - ${opt.label}`)
             .join('\n');
           finalContent = `${node.content}\n\n${optionsText}`;
+          await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
+        } else {
+          await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
         }
-
-        await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
         
         // Salva no banco com o conteúdo completo
         await prisma.message.create({
           data: {
             conversationId,
-            body: finalContent,
+            body: node.type === 'LIST' ? `[LISTA: ${node.content}]` : finalContent,
             fromMe: true,
             type: 'chat'
           }
@@ -199,8 +238,8 @@ export const botEngine = {
         }
       }
     } 
-    else if (node.type === 'TRANSFER') {
-      // Envia aviso de transferência
+    else if (node.type === 'TRANSFER' || node.routingDepartmentId) {
+      // Envia aviso de transferência se houver conteúdo
       if (node.content) {
         await whatsappService.sendMessage(instanceName, remoteJid, node.content);
         
@@ -214,17 +253,20 @@ export const botEngine = {
         });
       }
 
-      // Desliga o bot e manda pra fila humana
+      // Desliga o bot e manda pra fila do setor correspondente
       await prisma.conversation.update({
         where: { id: conversationId },
         data: { 
           isBotActive: false,
           status: 'QUEUED',
+          departmentId: node.routingDepartmentId || null,
           currentFlowId: null,
           currentStepId: null,
           lastMessageAt: new Date()
         }
       });
+      
+      console.log(`[BotEngine] 🚩 Conversa ${conversationId} roteada para o setor: ${node.routingDepartmentId || 'Geral'}`);
     }
   }
 };

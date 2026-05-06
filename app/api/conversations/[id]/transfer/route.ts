@@ -11,25 +11,22 @@ export async function POST(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const { userId } = await req.json();
-
-  if (!userId) {
-    return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-  }
+  const { departmentId, userId } = await req.json();
 
   try {
-    const updatedConversation = await prisma.conversation.update({
+    const conversation = await prisma.conversation.update({
       where: { id },
       data: {
-        assignedToId: userId,
-        status: 'ACTIVE', // ensure it moves out of queue if it was there
-        isBotActive: false
+        departmentId: departmentId || undefined,
+        assignedToId: userId || null,
+        status: userId ? 'ACTIVE' : 'QUEUED', // Se transferiu para um usuário, fica Ativo. Se só pro setor, vai pra Fila.
+        isBotActive: false // Garante que o bot não interfira após a transferência manual
       }
     });
 
-    return NextResponse.json(updatedConversation);
+    return NextResponse.json(conversation);
   } catch (error) {
     console.error('Error transferring conversation:', error);
-    return NextResponse.json({ error: 'Failed to transfer conversation' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to transfer' }, { status: 500 });
   }
 }

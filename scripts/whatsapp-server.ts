@@ -15,8 +15,15 @@ async function syncInstancesStatus() {
         
         // Se a instância existe na Evolution
         if (status) {
-          const state = status.instance?.state || status.state;
-          const dbStatus = state === 'open' ? 'CONNECTED' : 'DISCONNECTED';
+          const state = 
+            status.instance?.state || 
+            status.state || 
+            status.instanceStatus || 
+            status.instance?.status || 
+            status.instance?.instanceStatus || 
+            status.status;
+
+          const dbStatus = (state === 'open' || state === 'CONNECTED' || state === 'online') ? 'CONNECTED' : 'DISCONNECTED';
           
           if (dbStatus === 'CONNECTED') {
             console.log(`[WhatsApp Server] Instância ${instance.name} online. Atualizando Webhook...`);

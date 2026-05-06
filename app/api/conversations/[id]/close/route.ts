@@ -29,6 +29,10 @@ export async function POST(
       data: {
         status: 'CLOSED',
         isBotActive: false,
+        departmentId: null,
+        assignedToId: null,
+        currentFlowId: null,
+        currentStepId: null
       }
     });
 

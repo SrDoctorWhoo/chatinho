@@ -19,16 +19,32 @@ model User {
   email         String    @unique
   password      String
   role          String  @default("ATTENDANT")
+  signature     String?   @db.NVarChar(Max)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   assignedConversations Conversation[] @relation("AssignedTo")
+  departments           Department[]   @relation("UserDepartments")
+}
+
+model Department {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  description   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  users         User[]         @relation("UserDepartments")
+  conversations Conversation[]
+  chatbotNodes  ChatbotNode[]  @relation("DepartmentRouting")
+  whatsappInstances WhatsappInstance[] @relation("InstanceDepartments")
 }
 
 model Contact {
   id            String    @id @default(cuid())
   name          String?
   number        String    @unique
+  email         String?   @db.NVarChar(255)
   profilePic    String?   @db.NVarChar(Max)
   notes         String?   @db.NVarChar(Max)
   createdAt     DateTime  @default(now())
@@ -42,6 +58,7 @@ model Conversation {
   contactId       String
   status          String @default("BOT")
   assignedToId    String?
+  departmentId    String?
   lastMessageAt   DateTime         @default(now())
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -53,6 +70,7 @@ model Conversation {
 
   contact         Contact          @relation(fields: [contactId], references: [id])
   assignedTo      User?            @relation("AssignedTo", fields: [assignedToId], references: [id])
+  department      Department?      @relation(fields: [departmentId], references: [id])
   messages        Message[]
 }
 
@@ -66,6 +84,7 @@ model ChatbotFlow {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
   nodes           ChatbotNode[]
+  instances       WhatsappInstance[] @relation("FlowInstances")
 }
 
 model ChatbotNode {
@@ -74,7 +93,11 @@ model ChatbotNode {
   type        String       @default("MESSAGE")
   content     String  @db.NVarChar(Max)       // The text to send
   
+  // Routing action
+  routingDepartmentId String?
+
   flow        ChatbotFlow    @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  routingDepartment Department? @relation("DepartmentRouting", fields: [routingDepartmentId], references: [id])
   options     ChatbotOption[]
   
   // For linear flows without options
@@ -116,7 +139,19 @@ model WhatsappInstance {
   name        String   @unique
   instanceId  String   @unique
   status      String   @default("DISCONNECTED") // CONNECTED, DISCONNECTED, QRCODE
+  number      String?
+  integration String?  @default("WHATSAPP-BAILEYS") // WHATSAPP-BAILEYS, WHATSAPP-BUSINESS
+  isActive    Boolean  @default(true)
   qrcode      String?   @db.NVarChar(Max)
+  
+  // Meta Cloud API Settings
+  token       String?   @db.NVarChar(Max)
+  phoneNumberId String?
+  wabaId      String?
+  
+  departments Department[] @relation("InstanceDepartments")
+  flows       ChatbotFlow[] @relation("FlowInstances")
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

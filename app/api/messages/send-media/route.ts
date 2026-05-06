@@ -13,6 +13,14 @@ export async function POST(req: Request) {
     const caption = formData.get('caption') as string || '';
     const file = formData.get('file') as File;
 
+    // Get user signature
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { signature: true }
+    });
+
+    const finalCaption = user?.signature ? `*${user.signature}*\n${caption}` : caption;
+
     if (!conversationId || !file) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -50,7 +58,7 @@ export async function POST(req: Request) {
         number: conversation.contact.number,
         mediatype: mimetype.includes('image') ? 'image' : mimetype.includes('video') ? 'video' : 'document',
         mimetype: mimetype,
-        caption: caption,
+        caption: finalCaption,
         media: base64,
         fileName: fileName
       })
@@ -65,7 +73,7 @@ export async function POST(req: Request) {
     const savedMessage = await prisma.message.create({
       data: {
         conversationId,
-        body: caption || '📷 Arquivo de Mídia',
+        body: finalCaption || '📷 Arquivo de Mídia',
         fromMe: true,
         type: mimetype.includes('image') ? 'image' : mimetype.includes('video') ? 'video' : 'document',
         mediaUrl: fileName // Can be enhanced later to save in S3/Cloudinary

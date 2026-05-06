@@ -19,13 +19,18 @@ export async function PATCH(
       data: {
         name: body.name !== undefined ? body.name : undefined,
         notes: body.notes !== undefined ? body.notes : undefined,
+        email: body.email !== undefined ? body.email : undefined,
       }
     });
 
     return NextResponse.json(updatedContact);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating contact:', error);
-    return NextResponse.json({ error: 'Failed to update contact' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to update contact', 
+      details: error.message,
+      code: error.code 
+    }, { status: 500 });
   }
 }
 

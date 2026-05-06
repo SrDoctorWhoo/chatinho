@@ -38,7 +38,13 @@ export async function POST(req: NextRequest) {
               data: {
                 number: jid,
                 name: pushName,
+                profilePic: data.profilePicUrl || null,
               }
+            });
+          } else if (!contact.profilePic && data.profilePicUrl) {
+            contact = await prisma.contact.update({
+              where: { id: contact.id },
+              data: { profilePic: data.profilePicUrl }
             });
           }
 

@@ -1,3 +1,4 @@
+// Force rebuild for Prisma schema sync
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { whatsappService } from '@/lib/whatsapp';
@@ -15,22 +16,77 @@ export async function POST(req: Request) {
     const event = (body.event || '').toLowerCase();
     console.log(`[Webhook] Evento: ${event}`);
 
-    if (event === 'messages.upsert' || event === 'messages_upsert') {
-      const messageData = body.data;
-      const remoteJid = messageData.key?.remoteJid || messageData.remoteJid;
+    if (event === 'connection_update' || event === 'connection.update') {
+      const instanceName = body.instance || body.instanceName || body.instanceId;
+      const state = body.data?.state || body.state || body.status;
+      const owner = body.data?.owner || body.owner || body.data?.number || body.number || body.data?.wuid;
+
+      if (instanceName) {
+        console.log(`[Webhook] Atualizando status de ${instanceName}: ${state}`);
+        await prisma.whatsappInstance.upsert({
+          where: { instanceId: instanceName },
+          update: {
+            status: state === 'open' || state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED',
+            number: owner ? String(owner).split('@')[0] : undefined
+          },
+          create: {
+            instanceId: instanceName,
+            name: instanceName,
+            status: state === 'open' || state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED',
+            number: owner ? String(owner).split('@')[0] : undefined
+          }
+        });
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (event === 'messages.upsert' || event === 'messages_upsert' || event === 'message') {
+      // Se não houver .data, assume que os dados estão na raiz (Cloud API / Official)
+      const messageData = body.data || body;
       
+      let remoteJid = messageData.key?.remoteJid || 
+                      messageData.remoteJid || 
+                      messageData.from || 
+                      body.sender?.remoteJid;
+
+      // Normaliza remoteJid se vier apenas o número
+      if (remoteJid && !remoteJid.includes('@')) {
+        remoteJid = `${remoteJid}@s.whatsapp.net`;
+      }
+      
+      // Fallback para Cloud API onde o número pode vir direto no sender
+      if (!remoteJid && body.sender?.number) {
+        remoteJid = `${body.sender.number}@s.whatsapp.net`;
+      }
+
+      const instanceName = body.instance || body.instanceName || body.instanceId;
+      
+      // 🛡️ Proteção 0: Verifica se a instância existe e está ATIVA no nosso sistema
+      const dbInstance = await prisma.whatsappInstance.findUnique({
+        where: { instanceId: instanceName }
+      });
+
+      if (dbInstance && !dbInstance.isActive) {
+        console.log(`[Webhook] 🚫 Instância "${instanceName}" está INATIVA. Ignorando mensagem.`);
+        return NextResponse.json({ success: true });
+      }
+
       // 🛡️ Proteção 1: Detecção robusta de fromMe
       const fromMe = messageData.key?.fromMe === true || 
                      messageData.fromMe === true || 
                      body.fromMe === true ||
-                     messageData.key?.fromMe === 'true';
+                     messageData.key?.fromMe === 'true' ||
+                     body.sender?.isMe === true;
 
       const text = messageData.message?.conversation || 
                    messageData.message?.extendedTextMessage?.text ||
                    messageData.message?.imageMessage?.caption ||
                    messageData.message?.videoMessage?.caption ||
                    messageData.content || 
-                   messageData.text;
+                   messageData.text ||
+                   messageData.message?.text ||
+                   (typeof messageData.message === 'string' ? messageData.message : null) ||
+                   body.message?.text;
 
       if (fromMe) {
         console.log(`[Webhook] ✋ Ignorando mensagem enviada por nós (fromMe: ${fromMe})`);
@@ -63,8 +119,8 @@ export async function POST(req: Request) {
           where: { number }
         });
 
-        const pushName = messageData.pushName || body.sender?.pushName || body.data?.pushName;
-        const instanceName = body.instance || body.instanceName || 'TESTE';
+        const pushName = messageData.pushName || body.sender?.pushName || body.data?.pushName || body.pushName;
+        const instanceName = body.instance || body.instanceName || body.instanceId || 'TESTE';
 
         if (!contact) {
           const profilePic = await whatsappService.getProfilePictureUrl(instanceName, remoteJid).catch(() => null);
@@ -91,22 +147,35 @@ export async function POST(req: Request) {
         const isNewConversation = !conversation;
 
         if (!conversation) {
-          // Check if there is a default or any active flow
+          // Busca fluxo vinculado à instância OU fluxo global (sem instâncias vinculadas)
           const flow = await prisma.chatbotFlow.findFirst({
-            where: { isActive: true }
+            where: {
+              isActive: true,
+              OR: [
+                { instances: { some: { instanceId: instanceName } } },
+                { instances: { none: {} } }
+              ]
+            }
           });
 
           conversation = await prisma.conversation.create({
             data: { 
               contactId: contact.id,
               status: flow ? 'BOT' : 'QUEUED',
-              isBotActive: !!flow
+              isBotActive: !!flow,
+              whatsappInstanceId: dbInstance?.id // Associa a conversa à instância se possível
             }
           });
         } else if (!conversation.assignedToId && !conversation.isBotActive && conversation.status !== 'CLOSED') {
           // Se não tem ninguém atendendo e o bot tá desligado, vamos ver se ligamos ele
           const flow = await prisma.chatbotFlow.findFirst({
-            where: { isActive: true }
+            where: {
+              isActive: true,
+              OR: [
+                { instances: { some: { instanceId: instanceName } } },
+                { instances: { none: {} } }
+              ]
+            }
           });
           if (flow) {
             conversation = await prisma.conversation.update({
@@ -133,14 +202,32 @@ export async function POST(req: Request) {
         });
 
         // 5. Bot Engine Processing
-        // Permitimos processar se: 
-        // a) O bot já está ativo na conversa
-        // b) OU se a conversa não tem atendente e o bot pode ser "acordado" por um gatilho
-        const canTriggerBot = !conversation.assignedToId || conversation.isBotActive;
+        // Verifica se existe fluxo ativo aplicável a esta instância (específico ou global)
+        const hasApplicableFlow = await prisma.chatbotFlow.findFirst({
+          where: {
+            isActive: true,
+            OR: [
+              { instances: { some: { instanceId: instanceName } } },
+              { instances: { none: {} } }
+            ]
+          }
+        });
+
+        // Se não há fluxo para esta instância, desativa o bot e manda para fila
+        if (!hasApplicableFlow && conversation.isBotActive) {
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { isBotActive: false, status: 'QUEUED', currentFlowId: null, currentStepId: null }
+          });
+          console.log(`[Webhook] Nenhum fluxo para instância "${instanceName}", conversa movida para QUEUED.`);
+        }
+
+        const canTriggerBot = (!conversation.assignedToId || conversation.isBotActive)
+          && !!hasApplicableFlow;
 
         if (!fromMe && canTriggerBot) {
           const { botEngine } = await import('@/lib/botEngine');
-          await botEngine.processMessage(conversation.id, text, instanceName, remoteJid);
+          await botEngine.processMessage(conversation.id, text || '', instanceName, remoteJid);
         }
 
         // Fetch fresh conversation state after bot might have changed it (e.g. to QUEUED)
@@ -151,7 +238,7 @@ export async function POST(req: Request) {
 
         // 6. Notify Socket.io server
         try {
-          await fetch(`${process.env.SOCKET_URL || 'http://localhost:3005'}/notify`, {
+          await fetch(`${process.env.SOCKET_URL || 'http://127.0.0.1:3005'}/notify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

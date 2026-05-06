@@ -8,7 +8,10 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const flows = await prisma.chatbotFlow.findMany({
-    include: { _count: { select: { nodes: true } } }
+    include: {
+      _count: { select: { nodes: true } },
+      instances: { select: { id: true, name: true } }
+    }
   });
   return NextResponse.json(flows);
 }
@@ -17,10 +20,16 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { name, description } = await req.json();
+  const { name, description, instanceIds } = await req.json();
 
   const flow = await prisma.chatbotFlow.create({
-    data: { name, description }
+    data: {
+      name,
+      description,
+      instances: instanceIds?.length ? {
+        connect: instanceIds.map((id: string) => ({ id }))
+      } : undefined
+    }
   });
 
   return NextResponse.json(flow);

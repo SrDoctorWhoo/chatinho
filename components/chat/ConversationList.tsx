@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Search, User, MessageSquare } from 'lucide-react';
+import { Search, User, MessageSquare, Bot } from 'lucide-react';
 
 interface ConversationListProps {
   conversations: any[];
@@ -10,9 +10,23 @@ interface ConversationListProps {
   onSelect: (id: string) => void;
   filter: string;
   setFilter: (filter: string) => void;
+  departments?: any[];
+  selectedDepartment?: string;
+  onDepartmentChange?: (id: string) => void;
+  showDeptFilter?: boolean;
 }
 
-export function ConversationList({ conversations, activeId, onSelect, filter, setFilter }: ConversationListProps) {
+export function ConversationList({ 
+  conversations, 
+  activeId, 
+  onSelect, 
+  filter, 
+  setFilter,
+  departments = [],
+  selectedDepartment = 'all',
+  onDepartmentChange,
+  showDeptFilter = false
+}: ConversationListProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const tabs = [
@@ -55,6 +69,23 @@ export function ConversationList({ conversations, activeId, onSelect, filter, se
             </button>
           ))}
         </div>
+
+        {/* Filtro de Setor para Gestores */}
+        {showDeptFilter && (
+          <div className="mt-4">
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Filtrar por Setor</label>
+            <select 
+              value={selectedDepartment}
+              onChange={(e) => onDepartmentChange?.(e.target.value)}
+              className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all cursor-pointer hover:bg-white/[0.08]"
+            >
+              <option value="all" className="bg-slate-900">Todos os Setores</option>
+              {departments.map((dept: any) => (
+                <option key={dept.id} value={dept.id} className="bg-slate-900">{dept.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Search */}
@@ -95,14 +126,19 @@ export function ConversationList({ conversations, activeId, onSelect, filter, se
             >
               <div className="relative">
                 <div className={cn(
-                  "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white overflow-hidden transition-all duration-500 relative",
-                  activeId === conv.id ? "bg-gradient-to-br from-emerald-500 to-teal-600 rotate-0" : "bg-slate-800 rotate-[-4deg] group-hover:rotate-0"
+                  "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white overflow-hidden transition-all duration-500 relative shadow-inner",
+                  activeId === conv.id ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20" : "bg-slate-800"
                 )}>
                   {conv.contact.profilePic ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={conv.contact.profilePic} alt={conv.contact.name || ''} className="w-full h-full object-cover" />
                   ) : (
-                    <User size={28} className={cn(activeId === conv.id ? "text-slate-950" : "text-slate-500")} />
+                    <span className={cn(
+                      "text-lg font-black tracking-tighter",
+                      activeId === conv.id ? "text-slate-950" : "text-emerald-500/80"
+                    )}>
+                      {(conv.contact.name || 'C').charAt(0).toUpperCase()}
+                    </span>
                   )}
                 </div>
                 {conv.status === 'QUEUED' && (
@@ -118,28 +154,48 @@ export function ConversationList({ conversations, activeId, onSelect, filter, se
               <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-start justify-between mb-1 gap-2">
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className={cn(
-                      "text-[15px] font-bold truncate transition-colors leading-tight",
-                      activeId === conv.id ? "text-emerald-400" : "text-slate-200 group-hover:text-white"
-                    )}>
-                      {conv.contact.name || conv.contact.number}
-                    </span>
-                    {conv.contact.name && conv.contact.name !== conv.contact.number && (
+                    <div className="flex items-center gap-2">
                       <span className={cn(
-                        "text-[11px] font-medium truncate mt-0.5",
-                        activeId === conv.id ? "text-emerald-700" : "text-slate-500"
+                        "text-[15px] font-bold truncate transition-colors leading-tight",
+                        activeId === conv.id ? "text-emerald-400" : "text-slate-200 group-hover:text-white"
                       )}>
-                        {conv.contact.number.includes('@lid') ? 'Linked Device' : conv.contact.number}
+                        {conv.contact.name || conv.contact.number}
                       </span>
+                      {conv.isBotActive && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                          <Bot size={10} className="text-amber-500" />
+                          <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter">Bot</span>
+                        </div>
+                      )}
+                    </div>
+                    {conv.contact.name && conv.contact.name !== conv.contact.number && (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={cn(
+                          "text-[11px] font-medium truncate",
+                          activeId === conv.id ? "text-emerald-700" : "text-slate-500"
+                        )}>
+                          {conv.contact.number.includes('@lid') ? 'Device' : conv.contact.number}
+                        </span>
+                        {conv.contact.notes && (
+                          <span className="text-[10px] text-amber-500/80 font-bold bg-amber-500/5 px-1.5 rounded-sm border border-amber-500/10 truncate max-w-[100px]">
+                            {conv.contact.notes}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
                       {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
-                    {conv.contact.notes && (
-                      <span className="text-[10px] font-bold text-amber-500/90 truncate max-w-[80px] italic flex items-center gap-1">
-                        📝 Nota
+                    {conv.status === 'QUEUED' && (
+                      <span className="px-2 py-0.5 bg-red-500/10 text-red-500 text-[8px] font-black uppercase rounded-md border border-red-500/20 animate-pulse">
+                        Fila
+                      </span>
+                    )}
+                    {conv.department && (
+                      <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase rounded-md border border-blue-500/20">
+                        {conv.department.name}
                       </span>
                     )}
                   </div>
@@ -147,7 +203,7 @@ export function ConversationList({ conversations, activeId, onSelect, filter, se
                 <div className="flex items-center gap-2">
                   <p className={cn(
                     "text-[13px] truncate flex-1 font-medium",
-                    conv.status === 'QUEUED' ? "text-orange-400/80" : "text-slate-500 group-hover:text-slate-400"
+                    conv.status === 'QUEUED' ? "text-red-400/80" : conv.isBotActive ? "text-amber-400/60" : "text-slate-500 group-hover:text-slate-400"
                   )}>
                     {conv.status === 'QUEUED' ? 'Aguardando atendimento...' : (conv.messages?.[0]?.body || 'Inicie uma conversa')}
                   </p>

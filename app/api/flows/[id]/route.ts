@@ -18,7 +18,8 @@ export async function GET(
         nodes: {
           include: { options: true },
           orderBy: { id: 'asc' }
-        }
+        },
+        instances: { select: { id: true, name: true } }
       }
     });
 
@@ -38,12 +39,24 @@ export async function PUT(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { nodes, name, description, isActive, isDefault, triggerKeywords } = await req.json();
+    const { nodes, name, description, isActive, isDefault, triggerKeywords, instanceIds } = await req.json();
 
-    // 1. Atualiza dados básicos do fluxo
+    // 1. Atualiza dados básicos do fluxo + vínculo de instâncias
     await prisma.chatbotFlow.update({
       where: { id },
-      data: { name, description, isActive, isDefault, triggerKeywords }
+      data: {
+        name,
+        description,
+        isActive,
+        isDefault,
+        triggerKeywords,
+        // set substitui todas as instâncias vinculadas
+        instances: {
+          set: instanceIds?.length
+            ? instanceIds.map((iid: string) => ({ id: iid }))
+            : []
+        }
+      }
     });
 
     // 2. Sincronização complexa de nós (Deletar e recriar é mais seguro para fluxos pequenos, 

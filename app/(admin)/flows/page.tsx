@@ -99,8 +99,24 @@ export default function FlowsPage() {
                 <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
                   {flow.description || 'Sem descrição'}
                 </p>
-                <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  {flow._count?.nodes || 0} PASSOS
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    {flow._count?.nodes || 0} PASSOS
+                  </span>
+                  <span className="text-slate-700 dark:text-slate-700">·</span>
+                  {flow.instances?.length > 0 ? (
+                    <div className="flex gap-1 flex-wrap">
+                      {flow.instances.map((inst: any) => (
+                        <span key={inst.id} className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-500 text-[10px] font-bold">
+                          {inst.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 text-[10px] font-bold">
+                      TODAS
+                    </span>
+                  )}
                 </div>
               </div>
 

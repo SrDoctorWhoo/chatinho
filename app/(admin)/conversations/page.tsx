@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { useSession } from 'next-auth/react';
 import { ConversationList } from '@/components/chat/ConversationList';
 
 const ChatWindow = dynamic(() => import('@/components/chat/ChatWindow').then(m => m.ChatWindow), { ssr: false });
@@ -11,18 +12,35 @@ import { MessageSquare, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ConversationsPage() {
+  const { data: session } = useSession();
   const [conversations, setConversations] = useState<any[]>([]);
-  const [activeConversation, setActiveConversation] = useState<any>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [availableDepartments, setAvailableDepartments] = useState<any[]>([]);
   const [toast, setToast] = useState<{message: string, show: boolean, type: 'success' | 'error'}>({message: '', show: false, type: 'success'});
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const { socket } = useSocket();
+
+  // Conversa ativa calculada a partir da lista
+  const activeConversation = conversations.find(c => c.id === activeConversationId);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({message, show: true, type});
     setTimeout(() => setToast({message: '', show: false, type}), 4000);
   };
+
+  useEffect(() => {
+    if (session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER') {
+      fetch('/api/departments')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setAvailableDepartments(data);
+        });
+    }
+  }, [session]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -34,6 +52,10 @@ export default function ConversationsPage() {
       } else if (filter !== 'all') {
         params.append('status', filter);
       }
+
+      if (selectedDepartment !== 'all') {
+        params.append('departmentId', selectedDepartment);
+      }
       
       if (params.toString()) {
         url += `?${params.toString()}`;
@@ -41,20 +63,13 @@ export default function ConversationsPage() {
 
       const res = await fetch(url);
       const data = await res.json();
-      const updatedList = Array.isArray(data) ? data : [];
-      setConversations(updatedList);
-      
-      // Sincroniza a conversa ativa com os dados novos
-      if (activeConversation) {
-        const updatedActive = updatedList.find(c => c.id === activeConversation.id);
-        if (updatedActive) setActiveConversation(updatedActive);
-      }
+      setConversations(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, selectedDepartment]);
 
   const fetchMessages = async (conversationId: string) => {
     try {
@@ -74,22 +89,51 @@ export default function ConversationsPage() {
     if (!socket) return;
 
     socket.on('new_message', (data: any) => {
-      if (activeConversation?.id === data.conversationId) {
-        setMessages(prev => [...prev, data.message]);
+      // 1. Update messages if the conversation is active
+      if (activeConversationId === data.conversationId) {
+        setMessages(prev => {
+          // Evitar mensagens duplicadas (caso o optimistic UI já tenha adicionado)
+          if (prev.find(m => m.id === data.message.id)) return prev;
+          return [...prev, data.message];
+        });
       }
-      fetchConversations();
+
+      // 2. Re-order conversations list locally for instant feedback
+      setConversations(prev => {
+        const index = prev.findIndex(c => c.id === data.conversationId);
+        
+        if (index !== -1) {
+          // Conversa já existe na lista
+          const updatedConversations = [...prev];
+          const conversation = { ...updatedConversations[index] };
+          
+          // Atualiza dados da última mensagem
+          conversation.lastMessageAt = data.message.timestamp;
+          conversation.messages = [data.message];
+          
+          // Se o webhook mandou o estado atualizado da conversa (com assignedTo etc)
+          if (data.conversation) {
+             Object.assign(conversation, data.conversation);
+          }
+
+          // Remove da posição atual e coloca no topo
+          updatedConversations.splice(index, 1);
+          return [conversation, ...updatedConversations];
+        } else {
+          // Conversa nova ou não estava na lista carregada
+          fetchConversations();
+          return prev;
+        }
+      });
     });
 
     return () => {
       socket.off('new_message');
     };
-  }, [socket, activeConversation, fetchConversations]);
+  }, [socket, activeConversationId, fetchConversations]);
 
   const handleSelectConversation = async (id: string) => {
-    const conv = conversations.find(c => c.id === id);
-    if (!conv) return;
-    
-    setActiveConversation(conv);
+    setActiveConversationId(id);
     await fetchMessages(id);
   };
 
@@ -147,13 +191,20 @@ export default function ConversationsPage() {
   return (
     <div className="h-[calc(100vh-160px)] glass-panel rounded-[2rem] overflow-hidden flex shadow-2xl animate-in border-white/5">
       {/* Sidebar - Contatos */}
-      <div className="w-[380px] flex-shrink-0 border-r border-white/5 flex flex-col bg-white/[0.02] z-20 backdrop-blur-md">
+      <div className={cn(
+        "flex-shrink-0 border-r border-white/5 flex flex-col bg-white/[0.02] z-20 backdrop-blur-md transition-all duration-500 ease-in-out overflow-hidden",
+        isSidebarVisible ? "w-[380px] opacity-100" : "w-0 opacity-0 border-none"
+      )}>
         <ConversationList 
           conversations={conversations} 
-          activeId={activeConversation?.id}
+          activeId={activeConversationId || undefined}
           onSelect={handleSelectConversation}
           filter={filter}
           setFilter={setFilter}
+          departments={availableDepartments}
+          selectedDepartment={selectedDepartment}
+          onDepartmentChange={setSelectedDepartment}
+          showDeptFilter={session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER'}
         />
       </div>
       
@@ -166,8 +217,10 @@ export default function ConversationsPage() {
                 conversation={activeConversation} 
                 messages={messages}
                 onStatusUpdate={fetchConversations}
+                onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
+                isSidebarCollapsed={!isSidebarVisible}
                 onDeleted={() => {
-                  setActiveConversation(null);
+                  setActiveConversationId(null);
                   showToast('Ação concluída com sucesso!');
                 }}
               />

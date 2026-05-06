@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaMssql } from '@prisma/adapter-mssql';
-import { Connection } from 'tedious';
 
 const connectionString = process.env.DATABASE_URL || '';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Search, User, MessageSquare, Bot } from 'lucide-react';
 
@@ -16,7 +16,7 @@ interface ConversationListProps {
   showDeptFilter?: boolean;
 }
 
-export function ConversationList({ 
+export const ConversationList = React.memo(function ConversationList({ 
   conversations, 
   activeId, 
   onSelect, 
@@ -29,19 +29,21 @@ export function ConversationList({
 }: ConversationListProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'all', label: 'Todos' },
     { id: 'QUEUED', label: 'Fila' },
     { id: 'mine', label: 'Meus' },
     { id: 'CLOSED', label: 'Fechados' }
-  ];
+  ], []);
 
-  const filteredConversations = conversations.filter(conv => {
+  const filteredConversations = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    const nameMatch = conv.contact?.name?.toLowerCase().includes(term);
-    const numMatch = conv.contact?.number?.toLowerCase().includes(term);
-    return nameMatch || numMatch;
-  });
+    return conversations.filter(conv => {
+      const nameMatch = conv.contact?.name?.toLowerCase().includes(term);
+      const numMatch = conv.contact?.number?.toLowerCase().includes(term);
+      return nameMatch || numMatch;
+    });
+  }, [conversations, searchTerm]);
 
   return (
     <div className="h-full flex flex-col bg-transparent">
@@ -222,4 +224,4 @@ export function ConversationList({
       </div>
     </div>
   );
-}
+});

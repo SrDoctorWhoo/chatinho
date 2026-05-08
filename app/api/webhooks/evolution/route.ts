@@ -20,10 +20,18 @@ export async function POST(req: NextRequest) {
         const pushName = data.pushName || number;
         const text = message.conversation || 
                      message.extendedTextMessage?.text || 
-                     (message.imageMessage ? '[Imagem]' : '[Mensagem]');
+                     (message.imageMessage ? '[Imagem]' : 
+                      message.audioMessage ? '[Áudio]' : 
+                      message.videoMessage ? '[Vídeo]' : 
+                      message.documentMessage ? '[Documento]' : '[Mensagem]');
+
+        const mediaUrl = message.imageMessage?.url || 
+                         message.audioMessage?.url || 
+                         message.videoMessage?.url || 
+                         message.documentMessage?.url || null;
 
         if (text) {
-          // Process message logic (copied and adapted from previous whatsapp.ts)
+          // Process message logic
           let contact = await prisma.contact.findFirst({
             where: {
               OR: [
@@ -63,7 +71,11 @@ export async function POST(req: NextRequest) {
               conversationId: conversation.id,
               body: text,
               fromMe: false,
-              type: message.imageMessage ? 'image' : 'chat',
+              type: message.imageMessage ? 'image' : 
+                    message.audioMessage ? 'audio' : 
+                    message.videoMessage ? 'video' : 
+                    message.documentMessage ? 'document' : 'chat',
+              mediaUrl: mediaUrl,
             }
           });
 

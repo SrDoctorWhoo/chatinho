@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
 import { ConversationList } from '@/components/chat/ConversationList';
 
 const ChatWindow = dynamic(() => import('@/components/chat/ChatWindow').then(m => m.ChatWindow), { ssr: false });
-const MessageInput = dynamic(() => import('@/components/chat/MessageInput').then(m => m.MessageInput), { ssr: false });
+const MessageInput = dynamic(() => import('@/components/chat/message-input').then(m => m.MessageInput), { ssr: false });
 import { useSocket } from '@/hooks/useSocket';
 import { MessageSquare, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ConversationsPage() {
   const { data: session } = useSession();
+  const [messagesCache, setMessagesCache] = useState<Record<string, any[]>>({});
+  const [hasMoreMap, setHasMoreMap] = useState<Record<string, boolean>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -24,21 +27,39 @@ export default function ConversationsPage() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const { socket } = useSocket();
 
-  // Conversa ativa calculada a partir da lista
-  const activeConversation = conversations.find(c => c.id === activeConversationId);
+  // Active conversation helper
+  const activeConversation = useMemo(() => 
+    conversations.find(c => c.id === activeConversationId),
+    [conversations, activeConversationId]
+  );
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({message, show: true, type});
     setTimeout(() => setToast({message: '', show: false, type}), 4000);
   };
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetch(`/api/users/${session.user.id}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) setCurrentUser(data);
+        })
+        .catch(err => console.error('Error fetching user:', err));
+    }
+  }, [session]);
+
   useEffect(() => {
     if (session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER') {
       fetch('/api/departments')
-        .then(res => res.json())
-        .then(data => {
+        .then(res => res.ok ? res.text() : Promise.resolve('[]'))
+        .then(text => {
+          const data = text ? JSON.parse(text) : [];
           if (Array.isArray(data)) setAvailableDepartments(data);
-        });
+        })
+        .catch(err => console.error('Error fetching departments:', err));
     }
   }, [session]);
 
@@ -62,7 +83,10 @@ export default function ConversationsPage() {
       }
 
       const res = await fetch(url);
-      const data = await res.json();
+      if (!res.ok) throw new Error('Failed to fetch conversations');
+      
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : [];
       setConversations(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
@@ -71,15 +95,63 @@ export default function ConversationsPage() {
     }
   }, [filter, selectedDepartment]);
 
-  const fetchMessages = async (conversationId: string) => {
+  const activeIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  const fetchMessages = useCallback(async (conversationId: string, cursor?: string) => {
     try {
-      const res = await fetch(`/api/conversations/${conversationId}/messages`);
+      const url = `/api/conversations/${conversationId}/messages?limit=50${cursor ? `&cursor=${cursor}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch messages');
+
       const data = await res.json();
-      setMessages(Array.isArray(data) ? data : []);
+      const newMessages = Array.isArray(data) ? data : [];
+      
+      setHasMoreMap(prev => ({
+        ...prev,
+        [conversationId]: newMessages.length === 50
+      }));
+
+      // Atualiza o cache sempre
+      setMessagesCache(prev => {
+        const current = prev[conversationId] || [];
+        if (cursor) {
+          const updated = [...newMessages, ...current];
+          return { ...prev, [conversationId]: updated };
+        } else {
+          return { ...prev, [conversationId]: newMessages };
+        }
+      });
+
+      // Só atualiza a view se ainda for a conversa ativa (usando ref para evitar stale closure)
+      if (activeIdRef.current === conversationId) {
+        if (cursor) {
+          setMessages(prev => [...newMessages, ...prev]);
+        } else {
+          setMessages(newMessages);
+        }
+      }
+      
+      return newMessages;
     } catch (err) {
       console.error(err);
+      return [];
     }
-  };
+  }, []);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!activeConversationId || loadingMore || !hasMoreMap[activeConversationId]) return;
+    
+    const oldestMessage = messages[0];
+    if (!oldestMessage?.id) return;
+
+    setLoadingMore(true);
+    await fetchMessages(activeConversationId, oldestMessage.id);
+    setLoadingMore(false);
+  }, [activeConversationId, messages, loadingMore, hasMoreMap, fetchMessages]);
 
   useEffect(() => {
     fetchConversations();
@@ -89,38 +161,35 @@ export default function ConversationsPage() {
     if (!socket) return;
 
     socket.on('new_message', (data: any) => {
-      // 1. Update messages if the conversation is active
-      if (activeConversationId === data.conversationId) {
+      const { conversationId, message } = data;
+
+      // 1. Update Global Cache
+      setMessagesCache(prev => {
+        const current = prev[conversationId] || [];
+        if (current.find(m => m.id === message.id)) return prev;
+        return { ...prev, [conversationId]: [...current, message] };
+      });
+
+      // 2. Update Active View
+      if (activeConversationId === conversationId) {
         setMessages(prev => {
-          // Evitar mensagens duplicadas (caso o optimistic UI já tenha adicionado)
-          if (prev.find(m => m.id === data.message.id)) return prev;
-          return [...prev, data.message];
+          if (prev.find(m => m.id === message.id)) return prev;
+          return [...prev, message];
         });
       }
 
-      // 2. Re-order conversations list locally for instant feedback
+      // 3. Update Conversation List
       setConversations(prev => {
-        const index = prev.findIndex(c => c.id === data.conversationId);
-        
+        const index = prev.findIndex(c => c.id === conversationId);
         if (index !== -1) {
-          // Conversa já existe na lista
-          const updatedConversations = [...prev];
-          const conversation = { ...updatedConversations[index] };
-          
-          // Atualiza dados da última mensagem
-          conversation.lastMessageAt = data.message.timestamp;
-          conversation.messages = [data.message];
-          
-          // Se o webhook mandou o estado atualizado da conversa (com assignedTo etc)
-          if (data.conversation) {
-             Object.assign(conversation, data.conversation);
-          }
-
-          // Remove da posição atual e coloca no topo
-          updatedConversations.splice(index, 1);
-          return [conversation, ...updatedConversations];
+          const updated = [...prev];
+          const conv = { ...updated[index] };
+          conv.lastMessageAt = message.timestamp;
+          conv.messages = [message];
+          if (data.conversation) Object.assign(conv, data.conversation);
+          updated.splice(index, 1);
+          return [conv, ...updated];
         } else {
-          // Conversa nova ou não estava na lista carregada
           fetchConversations();
           return prev;
         }
@@ -132,24 +201,43 @@ export default function ConversationsPage() {
     };
   }, [socket, activeConversationId, fetchConversations]);
 
-  const handleSelectConversation = async (id: string) => {
+  const handleSelectConversation = useCallback(async (id: string) => {
+    if (id === activeConversationId) return;
+    
     setActiveConversationId(id);
-    await fetchMessages(id);
-  };
+    
+    // Check Cache first
+    if (messagesCache[id]) {
+      setMessages(messagesCache[id]);
+      // Silently refresh last 50 to keep it fresh
+      fetchMessages(id);
+    } else {
+      setMessages([]);
+      await fetchMessages(id);
+    }
+  }, [activeConversationId, messagesCache, fetchMessages]);
 
   const handleSendMessage = async (text: string) => {
     if (!activeConversation) return;
 
+    const signature = currentUser?.signature;
+    const bodyWithSignature = signature ? `*${signature}*\n${text}` : text;
+
     const newMessage = {
       id: 'temp-' + Date.now(),
-      body: text,
+      body: bodyWithSignature,
       fromMe: true,
       timestamp: new Date().toISOString()
     };
+    
     setMessages(prev => [...prev, newMessage]);
+    setMessagesCache(prev => ({
+      ...prev,
+      [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
+    }));
 
     try {
-      await fetch('/api/messages/send', {
+      const response = await fetch('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -157,21 +245,36 @@ export default function ConversationsPage() {
           text
         })
       });
+      if (!response.ok) {
+        const data = await response.json();
+        showToast(data.error || 'Erro ao enviar mensagem', 'error');
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
+      showToast('Erro de conexão ao enviar mensagem', 'error');
     }
   };
 
   const handleSendMedia = async (file: File, caption?: string) => {
     if (!activeConversation) return;
 
+    const signature = currentUser?.signature;
+    const bodyWithSignature = signature ? `*${signature}*\n${caption || ''}` : (caption || '');
+
     const newMessage = {
       id: 'temp-' + Date.now(),
-      body: caption || `📷 Mídia: ${file.name}`,
+      body: bodyWithSignature || (file.type.includes('image') ? '' : `Mídia: ${file.name}`),
       fromMe: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      type: file.type.includes('image') ? 'image' : file.type.includes('audio') ? 'audio' : 'document',
+      mediaUrl: URL.createObjectURL(file)
     };
+    
     setMessages(prev => [...prev, newMessage]);
+    setMessagesCache(prev => ({
+      ...prev,
+      [activeConversation.id]: [...(prev[activeConversation.id] || []), newMessage]
+    }));
 
     try {
       const formData = new FormData();
@@ -179,17 +282,35 @@ export default function ConversationsPage() {
       formData.append('file', file);
       if (caption) formData.append('caption', caption);
 
-      await fetch('/api/messages/send-media', {
+      const response = await fetch('/api/messages/send-media', {
         method: 'POST',
         body: formData
       });
+
+      if (!response.ok) {
+        const data = await response.json();
+        showToast(data.error || 'Erro ao enviar mídia', 'error');
+        setMessages(prev => prev.filter(m => m.id !== newMessage.id));
+      } else {
+        const data = await response.json();
+        if (data.message) {
+          setMessages(prev => prev.map(m => m.id === newMessage.id ? data.message : m));
+          setMessagesCache(prev => ({
+            ...prev,
+            [activeConversation.id]: (prev[activeConversation.id] || []).map(m => m.id === newMessage.id ? data.message : m)
+          }));
+        }
+      }
+      URL.revokeObjectURL(newMessage.mediaUrl);
     } catch (err) {
       console.error('Failed to send media:', err);
+      showToast('Erro de conexão ao enviar mídia', 'error');
     }
   };
 
   return (
-    <div className="h-[calc(100vh-160px)] glass-panel rounded-[2rem] overflow-hidden flex shadow-2xl animate-in border-white/5">
+    <div className="p-8 h-full flex flex-col">
+      <div className="flex-1 glass-panel rounded-[2rem] overflow-hidden flex shadow-2xl animate-in border-white/5">
       {/* Sidebar - Contatos */}
       <div className={cn(
         "flex-shrink-0 border-r border-white/5 flex flex-col bg-white/[0.02] z-20 backdrop-blur-md transition-all duration-500 ease-in-out overflow-hidden",
@@ -209,7 +330,7 @@ export default function ConversationsPage() {
       </div>
       
       {/* Área do Chat */}
-      <div className="flex-1 flex flex-col min-w-0 bg-slate-950/30 relative z-10">
+      <div className="flex-1 flex flex-col min-w-0 bg-slate-950/30 relative z-30">
         {activeConversation ? (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <div className="flex-1 min-h-0">
@@ -219,6 +340,8 @@ export default function ConversationsPage() {
                 onStatusUpdate={fetchConversations}
                 onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
                 isSidebarCollapsed={!isSidebarVisible}
+                onLoadMore={loadMoreMessages}
+                hasMore={hasMoreMap[activeConversationId || '']}
                 onDeleted={() => {
                   setActiveConversationId(null);
                   showToast('Ação concluída com sucesso!');
@@ -266,5 +389,6 @@ export default function ConversationsPage() {
         </div>
       )}
     </div>
+  </div>
   );
 }

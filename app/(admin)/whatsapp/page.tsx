@@ -223,7 +223,7 @@ export default function WhatsappPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 pb-20">
+    <div className="max-w-7xl mx-auto space-y-10 pb-20 p-8">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">

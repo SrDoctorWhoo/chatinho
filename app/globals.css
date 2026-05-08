@@ -9,7 +9,12 @@
   --accent: #06b6d4;
   --card: rgba(255, 255, 255, 0.4);
   --border: rgba(255, 255, 255, 0.5);
-  --selection: rgba(16, 185, 129, 0.1);
+  --selection: rgba(16, 185, 129, 0.4);
+}
+
+::selection {
+  background: var(--selection);
+  color: #fff;
 }
 
 .dark {
@@ -63,6 +68,8 @@ body {
   transition: 0.75s;
 }
 
+
+
 .premium-card:hover::before {
   left: 150%;
 }
@@ -102,4 +109,57 @@ body {
 
 .bubble-shadow-other {
   box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+/* PDF Export Helpers */
+.pdf-only { display: none !important; }
+body.is-exporting-pdf .pdf-only { display: flex !important; }
+body.is-exporting-pdf .audio-player { display: none !important; }
+body.is-exporting-pdf .pdf-audio-visual { display: flex !important; }
+
+body.is-exporting-pdf #messages-container {
+  width: 850px !important;
+  max-width: 850px !important;
+  padding: 60px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  background-color: #0b141a !important;
+}
+
+body.is-exporting-pdf .group {
+  width: 100% !important;
+}
+
+/* Glassmorphism & Premium UI Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-modal {
+  background: rgba(11, 20, 26, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.premium-shadow {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.glow-emerald {
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.4));
+}
+
+@keyframes premium-pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.animate-premium-pulse {
+  animation: premium-pulse 2s infinite ease-in-out;
 }

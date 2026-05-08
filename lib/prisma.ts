@@ -1,3 +1,4 @@
+// Prisma client singleton
 import { PrismaClient } from '@prisma/client';
 import { PrismaMssql } from '@prisma/adapter-mssql';
 

@@ -1,3 +1,4 @@
+// API for Chatbot Flows
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
@@ -76,6 +77,10 @@ export async function PUT(
             flowId: id,
             type: node.type,
             content: node.content,
+            integrationId: node.integrationId || null,
+            routingDepartmentId: node.routingDepartmentId || null,
+            variableName: node.variableName || null,
+            targetFlowId: node.targetFlowId || null,
             // Não seta o nextStepId ainda, pois pode depender de um nó que ainda não foi criado
           }
         });
@@ -101,13 +106,14 @@ export async function PUT(
         if (node.options && node.options.length > 0) {
           for (const opt of node.options) {
             const realTargetId = idMap.get(opt.targetNodeId);
-            if (realTargetId) {
+            if (realTargetId || opt.targetFlowId) {
               await tx.chatbotOption.create({
                 data: {
                   nodeId: realNodeId,
                   keyword: opt.keyword,
                   label: opt.label,
-                  targetNodeId: realTargetId
+                  targetNodeId: realTargetId || null,
+                  targetFlowId: opt.targetFlowId || null
                 }
               });
             }

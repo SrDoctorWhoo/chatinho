@@ -139,7 +139,7 @@ export default function AttendantsPage() {
   );
 
   return (
-    <div className="h-full flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="h-full flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 p-8">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>

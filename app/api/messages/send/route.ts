@@ -66,13 +66,19 @@ export async function POST(req: Request) {
 
     const finalBody = user?.signature ? `*${user.signature}*\n${text}` : text;
 
+    // Normalize number based on integration type
+    const cleanNumber = conversation.contact.number.replace(/\D/g, '');
+    const targetNumber = instance.integration === 'WHATSAPP-BUSINESS' 
+      ? cleanNumber 
+      : (conversation.contact.number.includes('@') ? conversation.contact.number : `${cleanNumber}@s.whatsapp.net`);
+
     // Call the background WhatsApp server API to send the message
     const sendRes = await fetch('http://localhost:3002/send-message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         instanceId: instance.instanceId,
-        number: conversation.contact.number,
+        number: targetNumber,
         text: finalBody
       })
     });

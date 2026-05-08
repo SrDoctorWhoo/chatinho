@@ -64,11 +64,15 @@ model Conversation {
   updatedAt       DateTime         @updatedAt
   
   // Automation state
-  currentFlowId   String?
-  currentStepId   String?
-  isBotActive     Boolean          @default(true)
+  currentFlowId      String?
+  currentStepId      String?
+  isBotActive        Boolean          @default(true)
+  difyConversationId String?          @db.NVarChar(Max)
+  variables          String?          @db.NVarChar(Max) // JSON string for dynamic variables
+
 
   contact         Contact          @relation(fields: [contactId], references: [id])
+
   assignedTo      User?            @relation("AssignedTo", fields: [assignedToId], references: [id])
   department      Department?      @relation(fields: [departmentId], references: [id])
   messages        Message[]
@@ -101,15 +105,23 @@ model ChatbotNode {
   options     ChatbotOption[]
   
   // For linear flows without options
+  // Integration for AI nodes
+  integrationId String?
+  integration   ExternalIntegration? @relation(fields: [integrationId], references: [id])
+
   nextStepId  String?
+  targetFlowId String?      // To trigger another flow
+  variableName String?     // For WAIT_INPUT: name of the variable to store the answer
 }
+
 
 model ChatbotOption {
   id          String      @id @default(cuid())
   nodeId      String
   keyword     String      // e.g. "1", "Financeiro"
   label       String      // e.g. "Falar com financeiro"
-  targetNodeId String     // ID of the node to go to
+  targetNodeId String?    // ID of the node to go to
+  targetFlowId String?    // To trigger another flow
   
   node        ChatbotNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 }
@@ -129,10 +141,36 @@ model Message {
 }
 
 model SystemSettings {
-  id        String   @id @default("global")
-  isBotEnabled Boolean @default(true)
-  updatedAt DateTime @updatedAt
+  id                    String   @id @default("global")
+  isBotEnabled          Boolean  @default(true)
+  
+  // Legacy fields (kept to avoid SQL Server constraint issues)
+  difyEnabled           Boolean  @default(false)
+  difyApiKey            String?  @db.NVarChar(Max)
+  difyUrl               String?  @db.NVarChar(Max)
+  
+  // Chat behavior
+  chatExpirationMinutes Int      @default(60)
+  
+  updatedAt             DateTime @updatedAt
 }
+
+
+model ExternalIntegration {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // DIFY, OPENAI, WEBHOOK, etc.
+  method      String?  @default("POST") // For Webhooks: GET or POST
+  apiKey      String?  @db.NVarChar(Max)
+  baseUrl     String?  @db.NVarChar(Max)
+  config      String?  @db.NVarChar(Max) // JSON metadata
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  chatbotNodes ChatbotNode[]
+}
+
 
 model WhatsappInstance {
   id          String   @id @default(cuid())

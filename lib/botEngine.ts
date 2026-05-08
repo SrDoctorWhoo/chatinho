@@ -20,15 +20,11 @@ export const botEngine = {
         return;
       }
 
-      // Evitar que o bot responda mensagens que enviamos (quando o atendente assume e a flag falhou, etc)
-      // O chamador deve garantir que `processMessage` só seja chamada para mensagens de clientes.
-
       let currentFlowId = conversation.currentFlowId;
       let currentStepId = conversation.currentStepId;
       const normalizedInput = (text || '').trim().toLowerCase();
 
       // 🔍 2. Verificação de Gatilho (Trigger) - Pode reiniciar o fluxo a qualquer momento
-      // Busca todos os fluxos ativos que podem ser usados por esta instância
       const activeFlows = await prisma.chatbotFlow.findMany({
         where: {
           isActive: true,
@@ -42,7 +38,6 @@ export const botEngine = {
         }
       });
 
-      // Tenta encontrar um fluxo que tenha a palavra-chave nos gatilhos
       let targetFlow = activeFlows.find(f => {
         const keywords = f.triggerKeywords?.split(',').map(k => k.trim().toLowerCase()).filter(k => k !== '') || [];
         return keywords.includes(normalizedInput);
@@ -52,7 +47,6 @@ export const botEngine = {
         console.log(`[BotEngine] ✅ Gatilho detectado ("${normalizedInput}"). Iniciando/Reiniciando fluxo: ${targetFlow.name}`);
         const firstNode = targetFlow.nodes[0];
         
-        // Atualiza a conversa
         await prisma.conversation.update({
           where: { id: conversationId },
           data: {
@@ -66,7 +60,6 @@ export const botEngine = {
         return this.executeNode(firstNode, conversationId, instanceName, remoteJid);
       }
 
-      // 3. Se não tem fluxo em andamento e não pegou gatilho, tenta o fluxo padrão (isDefault)
       if (!currentFlowId) {
         let defaultFlow = activeFlows.find(f => f.isDefault) || activeFlows.find(f => !f.triggerKeywords || f.triggerKeywords.trim() === '');
 
@@ -91,14 +84,12 @@ export const botEngine = {
         return this.executeNode(firstNode, conversationId, instanceName, remoteJid);
       }
 
-      // 3. Se já tem fluxo, busca o nó atual
       const currentNode = await prisma.chatbotNode.findUnique({
         where: { id: currentStepId as string },
         include: { options: true }
       });
 
       if (!currentNode) {
-        // Estado inválido (nó deletado?), reseta
         await prisma.conversation.update({
           where: { id: conversation.id },
           data: { currentFlowId: null, currentStepId: null }
@@ -106,18 +97,22 @@ export const botEngine = {
         return;
       }
 
-      // 4. Avalia a resposta do usuário baseada no tipo de nó atual
       if (currentNode.type === 'MENU' || currentNode.type === 'LIST') {
         const options = currentNode.options;
         const normalizedText = (text || '').trim().toLowerCase();
         
-        // Procura a opção correspondente (pela keyword)
-        const matchedOption = options.find(opt => opt.keyword.trim().toLowerCase() === normalizedText);
+        const matchedOption = options.find(opt => 
+          opt.keyword.trim().toLowerCase() === normalizedText ||
+          opt.label.trim().toLowerCase() === normalizedText
+        );
 
         if (matchedOption) {
-          // Encontrou a opção, avança para o targetNodeId
+          if (matchedOption.targetFlowId) {
+            return this.triggerFlow(matchedOption.targetFlowId, conversation.id, instanceName, remoteJid);
+          }
+
           const nextNode = await prisma.chatbotNode.findUnique({
-            where: { id: matchedOption.targetNodeId },
+            where: { id: matchedOption.targetNodeId as string },
             include: { options: true }
           });
 
@@ -129,18 +124,44 @@ export const botEngine = {
             await this.executeNode(nextNode, conversation.id, instanceName, remoteJid);
           }
         } else {
-          // Não encontrou opção, avisa e re-executa o nó de menu (que já formata bonitinho)
           await whatsappService.sendMessage(instanceName, remoteJid, "❌ *Opção inválida.* Por favor, escolha uma das opções abaixo:");
           await this.executeNode(currentNode, conversation.id, instanceName, remoteJid);
         }
-      } else if (currentNode.type === 'MESSAGE') {
-        // Se estava em MESSAGE esperando resposta (o que é raro num fluxo linear, geralmente MESSAGE tem nextStepId e não para),
-        // Se parou num MESSAGE e o usuário digitou, pode ser que esse MESSAGE era o fim da linha.
-        // Se tiver nextStepId, já deveria ter executado.
-        // Nesse caso, o bot pode não fazer nada, ou recomeçar o fluxo, ou transferir.
-        // Vamos manter o bot silencioso se chegou no fim da linha e o cara mandou msg.
-      }
+      } else if (currentNode.type === 'AI_DIFY') {
+        await this.executeNode(currentNode, conversation.id, instanceName, remoteJid);
+      } else if (currentNode.type === 'WAIT_INPUT') {
+        const variableName = currentNode.variableName || 'input';
+        let variables = {};
+        try {
+          variables = JSON.parse(conversation.variables || '{}');
+        } catch (e) {}
 
+        variables[variableName] = text;
+        console.log(`[BotEngine] 📥 Variável capturada: ${variableName} = ${text}`);
+
+        // Update in memory for immediate use in executeNode
+        const updatedVariablesStr = JSON.stringify(variables);
+        conversation.variables = updatedVariablesStr;
+        conversation.currentStepId = currentNode.nextStepId;
+
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { 
+            variables: updatedVariablesStr,
+            currentStepId: currentNode.nextStepId
+          }
+        });
+
+        if (currentNode.nextStepId) {
+          const nextNode = await prisma.chatbotNode.findUnique({
+            where: { id: currentNode.nextStepId },
+            include: { options: true }
+          });
+          if (nextNode) {
+            await this.executeNode(nextNode, conversation.id, instanceName, remoteJid);
+          }
+        }
+      }
     } catch (err) {
       console.error('[BotEngine] Erro ao processar:', err);
     }
@@ -149,111 +170,198 @@ export const botEngine = {
   async executeNode(node: any, conversationId: string, instanceName: string, remoteJid: string) {
     if (!node) return;
 
-    if (node.type === 'MESSAGE' || node.type === 'MENU' || node.type === 'LIST') {
-      // Envia a mensagem do nó
-      if (node.content) {
-        let finalContent = node.content;
+    if (node.type === 'MESSAGE' || node.type === 'MENU' || node.type === 'LIST' || node.type === 'AI_DIFY' || node.type === 'WAIT_INPUT') {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { contact: true }
+      });
 
-        // 📝 Substituição de Variáveis Dinâmicas
-        const conversation = await prisma.conversation.findUnique({
-          where: { id: conversationId },
-          include: { contact: true }
+      let variables: any = {};
+      try {
+        variables = JSON.parse(conversation?.variables || '{}');
+      } catch (e) {}
+
+      variables.nome = conversation?.contact?.name || 'Cliente';
+      variables.name = variables.nome;
+      variables.telefone = conversation?.contact?.number || '';
+      variables.number = variables.telefone;
+
+      const replaceVars = (str: string) => {
+        if (!str) return str;
+        let newStr = str;
+        Object.keys(variables).forEach(key => {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+          newStr = newStr.replace(regex, variables[key]);
         });
-        
-        if (conversation?.contact?.name) {
-          finalContent = finalContent.replace(/\{\{nome\}\}/gi, conversation.contact.name);
-          finalContent = finalContent.replace(/\{\{name\}\}/gi, conversation.contact.name);
+        return newStr;
+      };
+
+      if (node.type === 'AI_DIFY') {
+        try {
+          if (!node.integrationId) {
+            await whatsappService.sendMessage(instanceName, remoteJid, "⚠️ Erro: Nenhuma integração configurada para este passo.");
+            return;
+          }
+
+          const integration = await prisma.externalIntegration.findUnique({
+            where: { id: node.integrationId }
+          });
+
+          if (!integration) {
+            await whatsappService.sendMessage(instanceName, remoteJid, "⚠️ Erro: Integração não encontrada.");
+            return;
+          }
+
+          const lastUserMsg = await prisma.message.findFirst({
+            where: { conversationId, fromMe: false },
+            orderBy: { timestamp: 'desc' }
+          });
+
+          const messageText = replaceVars(lastUserMsg?.body || '');
+          const contactName = variables.nome;
+          const contactNumber = variables.telefone;
+          
+          let url = integration.baseUrl;
+          const method = (integration.method || 'POST').toUpperCase();
+          const options: RequestInit = {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(integration.apiKey ? { 'Authorization': `Bearer ${integration.apiKey}` } : {})
+            }
+          };
+
+          if (integration.type === 'DIFY') {
+            options.body = JSON.stringify({
+              inputs: variables,
+              query: messageText,
+              response_mode: "blocking",
+              user: contactNumber
+            });
+          } else if (integration.type === 'OPENAI') {
+            options.body = JSON.stringify({
+              model: "gpt-3.5-turbo",
+              messages: [{ role: "user", content: messageText }]
+            });
+          } else {
+            if (method === 'GET') {
+              const params = new URLSearchParams({
+                message: messageText,
+                contactName,
+                contactNumber,
+                ...variables
+              });
+              url = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`;
+            } else {
+              options.body = JSON.stringify({
+                message: messageText,
+                contact: { name: contactName, number: contactNumber },
+                conversationId,
+                variables,
+                config: integration.config || {}
+              });
+            }
+          }
+
+          const response = await fetch(url, options);
+          const responseText = await response.text();
+
+          if (response.ok) {
+            let answer = "";
+            try {
+              const data = JSON.parse(responseText);
+              answer = data.answer || data.response || data.output || data.text || data.result || "";
+              if (!answer && data.event === 'message') answer = data.answer;
+            } catch (e) {
+              answer = responseText;
+            }
+
+            if (answer) {
+              const finalAnswer = replaceVars(answer);
+              await whatsappService.sendMessage(instanceName, remoteJid, finalAnswer);
+              await prisma.message.create({
+                data: { conversationId, body: finalAnswer, fromMe: true, type: 'chat' }
+              });
+            }
+          } else {
+            let errorMsg = "❌ Erro na integração.";
+            if (response.status === 404) errorMsg = "❌ Erro 404 na IA.";
+            await whatsappService.sendMessage(instanceName, remoteJid, errorMsg);
+          }
+        } catch (err) {
+          console.error('[BotEngine] Erro fatal:', err);
         }
-        
-        // Se for um nó de LISTA (WhatsApp List Message)
+      }
+
+      if (node.content && node.type !== 'AI_DIFY') {
+        let finalContent = replaceVars(node.content);
+
         if (node.type === 'LIST' && node.options && node.options.length > 0) {
           try {
             await whatsappService.sendListMessage(instanceName, remoteJid, {
-              title: "Opções Disponíveis",
-              description: node.content,
+              title: "Opções",
+              description: finalContent,
               buttonText: "Ver Opções",
-              footer: "Escolha uma opção acima",
+              footer: "Escolha uma opção",
               sections: [{
-                title: "Menu principal",
+                title: "Menu",
                 rows: node.options.map((opt: any) => ({
                   title: opt.label,
-                  description: `Escolha ${opt.label}`,
                   rowId: opt.keyword
                 }))
               }]
             });
           } catch (err) {
-            // Fallback para menu texto se der erro na lista
-            const optionsText = node.options
-              .map((opt: any) => `*${opt.keyword}* - ${opt.label}`)
-              .join('\n');
-            finalContent = `${node.content}\n\n${optionsText}`;
-            await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
+            const optionsText = node.options.map((opt: any) => `*${opt.keyword}* - ${opt.label}`).join('\n');
+            await whatsappService.sendMessage(instanceName, remoteJid, `${finalContent}\n\n${optionsText}`);
           }
-        } 
-        // Se for um menu de TEXTO padrão
-        else if (node.type === 'MENU' && node.options && node.options.length > 0) {
-          const optionsText = node.options
-            .map((opt: any) => `*${opt.keyword}* - ${opt.label}`)
-            .join('\n');
-          finalContent = `${node.content}\n\n${optionsText}`;
-          await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
+        } else if (node.type === 'MENU' && node.options && node.options.length > 0) {
+          const optionsText = node.options.map((opt: any) => `*${opt.keyword}* - ${opt.label}`).join('\n');
+          await whatsappService.sendMessage(instanceName, remoteJid, `${finalContent}\n\n${optionsText}`);
         } else {
           await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
         }
         
-        // Salva no banco com o conteúdo completo
         await prisma.message.create({
           data: {
             conversationId,
-            body: node.type === 'LIST' ? `[LISTA: ${node.content}]` : finalContent,
+            body: node.type === 'LIST' ? `[LISTA: ${finalContent}]` : finalContent,
             fromMe: true,
             type: 'chat'
           }
         });
       }
 
-      // Atualiza data
       await prisma.conversation.update({
         where: { id: conversationId },
         data: { lastMessageAt: new Date() }
       });
 
-      // Se for MESSAGE e tiver nextStepId, executa imediatamente em cascata
-      if (node.type === 'MESSAGE' && node.nextStepId) {
+      if (node.targetFlowId) {
+        return this.triggerFlow(node.targetFlowId, conversationId, instanceName, remoteJid);
+      }
+
+      if ((node.type === 'MESSAGE' || node.type === 'AI_DIFY') && node.nextStepId) {
         const nextNode = await prisma.chatbotNode.findUnique({
           where: { id: node.nextStepId },
           include: { options: true }
         });
-        
         if (nextNode) {
           await prisma.conversation.update({
             where: { id: conversationId },
             data: { currentStepId: nextNode.id }
           });
-          
-          // Delayzinho pra não mandar tudo grudado de uma vez
           await new Promise(resolve => setTimeout(resolve, 1000));
           await this.executeNode(nextNode, conversationId, instanceName, remoteJid);
         }
       }
-    } 
-    else if (node.type === 'TRANSFER' || node.routingDepartmentId) {
-      // Envia aviso de transferência se houver conteúdo
+    } else if (node.type === 'TRANSFER' || node.routingDepartmentId) {
       if (node.content) {
         await whatsappService.sendMessage(instanceName, remoteJid, node.content);
-        
         await prisma.message.create({
-          data: {
-            conversationId,
-            body: node.content,
-            fromMe: true,
-            type: 'chat'
-          }
+          data: { conversationId, body: node.content, fromMe: true, type: 'chat' }
         });
       }
-
-      // Desliga o bot e manda pra fila do setor correspondente
       await prisma.conversation.update({
         where: { id: conversationId },
         data: { 
@@ -265,8 +373,32 @@ export const botEngine = {
           lastMessageAt: new Date()
         }
       });
-      
-      console.log(`[BotEngine] 🚩 Conversa ${conversationId} roteada para o setor: ${node.routingDepartmentId || 'Geral'}`);
     }
+  },
+
+  async triggerFlow(flowId: string, conversationId: string, instanceName: string, remoteJid: string) {
+    const flow = await prisma.chatbotFlow.findUnique({
+      where: { id: flowId },
+      include: { nodes: { orderBy: { id: 'asc' }, include: { options: true } } }
+    });
+
+    if (!flow || !flow.nodes || flow.nodes.length === 0) {
+      console.log(`[BotEngine] ⚠️ Falha ao acionar fluxo ${flowId}: Fluxo não encontrado ou sem nós.`);
+      return;
+    }
+
+    console.log(`[BotEngine] 🔀 Trocando fluxo para: ${flow.name}`);
+    const firstNode = flow.nodes[0];
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        currentFlowId: flow.id,
+        currentStepId: firstNode.id,
+        status: 'BOT',
+        isBotActive: true
+      }
+    });
+
+    return this.executeNode(firstNode, conversationId, instanceName, remoteJid);
   }
 };

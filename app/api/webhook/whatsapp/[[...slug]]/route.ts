@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { whatsappService } from '@/lib/whatsapp';
+import { MediaService } from '@/lib/mediaService';
 
 // 🛡️ Trava Anti-Loop em Memória
 const lastMessageTimes = new Map<string, number>();
@@ -15,34 +16,52 @@ export async function POST(req: Request) {
     
     const event = (body.event || '').toLowerCase();
     console.log(`[Webhook] Evento: ${event}`);
+    
+    const instanceName = body.instance || body.instanceName || body.instanceId;
+    const contactData = body.contacts?.[0];
+    const messageData = body.messages?.[0] || body.data;
+    const statusData = body.statuses?.[0] || body.data?.status;
 
-    if (event === 'connection_update' || event === 'connection.update') {
-      const instanceName = body.instance || body.instanceName || body.instanceId;
+    // Trata eventos de STATUS (entregue, lido, falha)
+    if (statusData && (event === 'messages.update' || event === 'message_update')) {
+      const id = statusData.id || statusData.key?.id;
+      const status = statusData.status || statusData.state;
+      const errors = statusData.errors;
+      
+      console.log(`[Status Update] Mensagem ${id} -> ${status}`);
+      
+      if (status === 'failed' || status === 'error') {
+        console.error(`[Message Failed] Erro:`, JSON.stringify(errors, null, 2));
+        // Opcional: Atualizar status da mensagem no banco de dados para 'FAILED'
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (instanceName && (event === 'connection_update' || event === 'connection.update')) {
       const state = body.data?.state || body.state || body.status;
       const owner = body.data?.owner || body.owner || body.data?.number || body.number || body.data?.wuid;
 
-      if (instanceName) {
-        console.log(`[Webhook] Atualizando status de ${instanceName}: ${state}`);
-        await prisma.whatsappInstance.upsert({
-          where: { instanceId: instanceName },
-          update: {
-            status: state === 'open' || state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED',
-            number: owner ? String(owner).split('@')[0] : undefined
-          },
-          create: {
-            instanceId: instanceName,
-            name: instanceName,
-            status: state === 'open' || state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED',
-            number: owner ? String(owner).split('@')[0] : undefined
-          }
-        });
-      }
+      console.log(`[Webhook] Atualizando status de ${instanceName}: ${state}`);
+      await prisma.whatsappInstance.upsert({
+        where: { instanceId: instanceName },
+        update: {
+          status: state === 'open' || state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED',
+          number: owner ? String(owner).split('@')[0] : undefined
+        },
+        create: {
+          instanceId: instanceName,
+          name: instanceName,
+          status: state === 'open' || state === 'CONNECTED' ? 'CONNECTED' : 'DISCONNECTED',
+          number: owner ? String(owner).split('@')[0] : undefined
+        }
+      });
       return NextResponse.json({ success: true });
     }
 
     if (event === 'messages.upsert' || event === 'messages_upsert' || event === 'message') {
       // Se não houver .data, assume que os dados estão na raiz (Cloud API / Official)
       const messageData = body.data || body;
+      console.log(`[Webhook] Mensagem de ${messageData.key?.remoteJid || 'N/A'} na instância ${body.instance || 'N/A'}`);
       
       let remoteJid = messageData.key?.remoteJid || 
                       messageData.remoteJid || 
@@ -85,13 +104,15 @@ export async function POST(req: Request) {
                    messageData.content || 
                    messageData.text ||
                    messageData.message?.text ||
+                   (messageData.message?.imageMessage ? '[Imagem]' : 
+                    messageData.message?.audioMessage ? '[Áudio]' : 
+                    messageData.message?.videoMessage ? '[Vídeo]' : 
+                    messageData.message?.documentMessage ? '[Documento]' : null) ||
                    (typeof messageData.message === 'string' ? messageData.message : null) ||
                    body.message?.text;
 
-      if (fromMe) {
-        console.log(`[Webhook] ✋ Ignorando mensagem enviada por nós (fromMe: ${fromMe})`);
-        return NextResponse.json({ success: true });
-      }
+      // REMOVIDO: A trava anti-fromMe impedia que mensagens enviadas pelo celular 
+      // aparecessem na plataforma. Agora salvamos todas para manter sincronismo.
 
       // 🛡️ Proteção 2: Trava de velocidade (Anti-Loop)
       const now = Date.now();
@@ -162,8 +183,7 @@ export async function POST(req: Request) {
             data: { 
               contactId: contact.id,
               status: flow ? 'BOT' : 'QUEUED',
-              isBotActive: !!flow,
-              whatsappInstanceId: dbInstance?.id // Associa a conversa à instância se possível
+              isBotActive: !!flow
             }
           });
         } else if (!conversation.assignedToId && !conversation.isBotActive && conversation.status !== 'CLOSED') {
@@ -186,12 +206,36 @@ export async function POST(req: Request) {
           }
         }
 
+        // Detect message type and content using data.messageType for better reliability
+        const rawMessageType = (messageData.messageType || body.messageType || '').toLowerCase();
+        const messageType = rawMessageType.includes('image') ? 'image' : 
+                          (rawMessageType.includes('audio') || rawMessageType.includes('ptt')) ? 'audio' : 
+                          rawMessageType.includes('video') ? 'video' : 
+                          rawMessageType.includes('document') ? 'document' : 
+                          (messageData.message?.imageMessage ? 'image' : 
+                           (messageData.message?.audioMessage || messageData.message?.pttMessage) ? 'audio' : 'chat');
+        
+        const mediaData = messageData.message?.imageMessage || 
+                         messageData.message?.audioMessage || 
+                         messageData.message?.pttMessage ||
+                         messageData.message?.videoMessage || 
+                         messageData.message?.documentMessage;
+        
+        const mediaUrl = mediaData?.url || null;
+
+        console.log(`[Webhook] Tipo: ${rawMessageType} -> ${messageType}, URL: ${mediaUrl ? 'OK' : 'N/A'}`);
+
+        // 2. Process Media if exists
+        const localMediaUrl = await MediaService.downloadMedia(instanceName, messageData, messageType);
+
         // 3. Save message
         const savedMessage = await prisma.message.create({
           data: {
             conversationId: conversation.id,
-            body: text,
+            body: text || `[${messageType}]`,
             fromMe: fromMe || false,
+            type: messageType,
+            mediaUrl: localMediaUrl,
           }
         });
 
@@ -238,15 +282,27 @@ export async function POST(req: Request) {
 
         // 6. Notify Socket.io server
         try {
-          await fetch(`${process.env.SOCKET_URL || 'http://127.0.0.1:3005'}/notify`, {
+          // Broadcast via Socket.io with enriched data
+          const enrichedMessage = await prisma.message.findUnique({
+            where: { id: savedMessage.id },
+            include: {
+              conversation: {
+                include: {
+                  contact: true
+                }
+              }
+            }
+          });
+
+          await fetch('http://127.0.0.1:3005/notify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               event: 'new_message',
               data: {
-                conversationId: conversation.id,
-                message: savedMessage,
-                conversation: freshConversation
+                message: enrichedMessage,
+                conversationId: enrichedMessage.conversationId,
+                conversation: enrichedMessage.conversation
               }
             })
           });
@@ -257,8 +313,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json({ error: 'Webhook failed' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Webhook error:', error.message || error);
+    return NextResponse.json({ error: 'Webhook failed', details: error.message }, { status: 500 });
   }
 }

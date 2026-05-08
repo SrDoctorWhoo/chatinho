@@ -4,6 +4,38 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        departments: true
+      }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Don't send password
+    const { password, ...userWithoutPassword } = user;
+    return NextResponse.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

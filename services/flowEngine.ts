@@ -48,6 +48,108 @@ export const flowEngine = {
         const currentNode = await prisma.chatbotNode.findUnique({
           where: { id: currentNodeId }
         });
+
+        // --- LÓGICA DE IA DINÂMICA ---
+        if (currentNode?.type === 'AI_DIFY' && currentNode.integrationId) {
+          console.log(`[Bot] Nó atual é IA. Buscando integração...`);
+          
+          const integration = await prisma.externalIntegration.findUnique({
+            where: { id: currentNode.integrationId }
+          });
+          
+          if (integration?.isActive) {
+            let answer = '';
+
+            if (integration.type === 'DIFY') {
+              const aiResponse = await this.callDify(
+                integration.apiKey || '',
+                integration.baseUrl || 'https://api.dify.ai/v1',
+                messageText,
+                conversation.id,
+                conversation.difyConversationId
+              );
+              if (aiResponse) {
+                answer = aiResponse.answer;
+                // Atualiza o contexto da IA
+                await prisma.conversation.update({
+                  where: { id: conversation.id },
+                  data: { difyConversationId: aiResponse.conversation_id }
+                });
+              }
+            } else if (integration.type === 'WEBHOOK') {
+              const method = integration.method || 'POST';
+              let url = integration.baseUrl || '';
+              let options: any = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+              };
+
+              const payload = {
+                contact: {
+                  name: conversation.contact.name,
+                  number: conversation.contact.number
+                },
+                message: messageText,
+                conversationId: conversation.id
+              };
+
+              if (method === 'GET') {
+                const params = new URLSearchParams({
+                  name: payload.contact.name,
+                  number: payload.contact.number,
+                  message: payload.message,
+                  conversationId: payload.conversationId
+                });
+                url = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`;
+              } else {
+                options.body = JSON.stringify(payload);
+              }
+
+              const response = await fetch(url, options);
+              if (response.ok) {
+                const data = await response.json();
+                answer = data.answer;
+              }
+            } else if (integration.type === 'OPENAI') {
+              const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${integration.apiKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: 'gpt-3.5-turbo',
+                  messages: [{ role: 'user', content: messageText }]
+                })
+              });
+              if (response.ok) {
+                const data = await response.json();
+                answer = data.choices[0].message.content;
+              }
+            }
+
+            if (answer) {
+              const instance = await prisma.whatsappInstance.findFirst({
+                where: { name: instanceName }
+              });
+
+              if (instance) {
+                await whatsappService.sendMessage(instance.instanceId, conversation.contact.number, answer);
+                
+                await prisma.message.create({
+                  data: {
+                    conversationId: conversation.id,
+                    body: answer,
+                    fromMe: true,
+                    type: 'chat'
+                  }
+                });
+                return;
+              }
+            }
+          }
+        }
+        // --- FIM LÓGICA IA ---
         
         if (currentNode?.nextStepId) {
           nextNode = await prisma.chatbotNode.findUnique({
@@ -130,6 +232,34 @@ export const flowEngine = {
       }
     } catch (error) {
       console.error(`[Bot] Erro ao executar nó ${node.id}:`, error);
+    }
+  },
+
+  async callDify(apiKey: string, baseUrl: string, query: string, userId: string, conversationId?: string | null) {
+    try {
+      const response = await fetch(`${baseUrl}/chat-messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: {},
+          query,
+          response_mode: 'blocking',
+          user: userId,
+          conversation_id: conversationId || undefined
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Dify API error: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Dify] Error calling Dify API:', error);
+      return null;
     }
   }
 };

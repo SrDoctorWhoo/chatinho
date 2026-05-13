@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
+  // Validate that the user actually exists in the database (prevents stale session foreign key errors)
+  const userExists = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!userExists) {
+    return NextResponse.json({ error: 'Sessão inválida. Por favor, faça login novamente.' }, { status: 401 });
   }
 
   const { id } = await params;
@@ -41,11 +47,33 @@ export async function POST(
             name: true,
             email: true
           }
+        },
+        department: true,
+        messages: {
+          take: 1,
+          orderBy: { timestamp: 'desc' }
         }
       }
     });
 
     console.log(`[Queue] Conversa ${id} assumida por ${session.user.name}`);
+
+    // Notify via Socket
+    try {
+      await fetch('http://127.0.0.1:3005/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'conversation_updated',
+          data: {
+            conversationId: id,
+            conversation: updatedConversation
+          }
+        })
+      });
+    } catch (e) {
+      console.error('[Socket] Failed to notify conversation acceptance:', e);
+    }
 
     return NextResponse.json(updatedConversation);
   } catch (error: any) {

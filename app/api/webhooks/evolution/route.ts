@@ -61,8 +61,9 @@ export async function POST(req: NextRequest) {
           });
 
           if (!conversation) {
+            const { generateProtocol } = await import('@/lib/protocol');
             conversation = await prisma.conversation.create({
-              data: { contactId: contact.id, status: 'ACTIVE' }
+              data: { contactId: contact.id, status: 'ACTIVE', protocol: generateProtocol() }
             });
           }
 

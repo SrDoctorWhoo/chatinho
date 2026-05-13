@@ -1,18 +1,19 @@
-// Prisma client singleton
+// Prisma client singleton - last sync: 2026-05-13
 import { PrismaClient } from '@prisma/client';
 import { PrismaMssql } from '@prisma/adapter-mssql';
 
-const connectionString = process.env.DATABASE_URL || '';
-
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const adapter = new PrismaMssql(connectionString);
+const connectionString = process.env.DATABASE_URL || '';
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
+const createPrismaClient = () => {
+  const adapter = new PrismaMssql(connectionString);
+  return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
+};
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+export const prisma = globalForPrisma.prisma || createPrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

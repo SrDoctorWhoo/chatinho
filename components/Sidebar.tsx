@@ -12,14 +12,18 @@ import {
   LogOut,
   ChevronRight,
   GitBranch,
-  Crown
+  Crown,
+  Layout
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSession, signOut } from 'next-auth/react';
+import { useState } from 'react';
+import { ProfileModal } from './ProfileModal';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'MANAGER', 'ATTENDANT'] },
-  { icon: MessageSquare, label: 'Conversas', href: '/conversations', roles: ['ADMIN', 'MANAGER', 'ATTENDANT'] },
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'MANAGER', 'ATTENDANT', 'INTERNAL'] },
+  { icon: Layout, label: 'Planner', href: '/planner', roles: ['ADMIN', 'MANAGER', 'ATTENDANT', 'INTERNAL'] },
+  { icon: MessageSquare, label: 'Conversas', href: '/conversations', roles: ['ADMIN', 'MANAGER', 'ATTENDANT', 'INTERNAL'] },
   { icon: Smartphone, label: 'WhatsApp', href: '/whatsapp', roles: ['ADMIN'] },
   { icon: GitBranch, label: 'Fluxos (Bot)', href: '/flows', roles: ['ADMIN', 'MANAGER'] },
   { icon: Users, label: 'Atendentes', href: '/attendants', roles: ['ADMIN', 'MANAGER'] },
@@ -29,6 +33,7 @@ const menuItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const filteredItems = menuItems.filter(item => 
     item.roles.includes(session?.user?.role || 'ATTENDANT')
@@ -102,14 +107,21 @@ export function Sidebar() {
       </nav>
 
       <div className="relative z-10 p-6 mt-auto">
-        <div className="bg-white/[0.03] backdrop-blur-md p-4 rounded-3xl mb-6 border border-white/5 group hover:bg-white/[0.05] transition-all cursor-pointer relative overflow-hidden">
+        <div 
+          onClick={() => setIsProfileOpen(true)}
+          className="bg-white/[0.03] backdrop-blur-md p-4 rounded-3xl mb-6 border border-white/5 group hover:bg-white/[0.05] transition-all cursor-pointer relative overflow-hidden"
+        >
           <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
             <Crown size={32} className="text-emerald-400" />
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-[10px]">
-                {session?.user?.role === 'ADMIN' ? 'ADM' : session?.user?.role === 'MANAGER' ? 'MGR' : 'ATD'}
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-[10px] overflow-hidden">
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  session?.user?.role === 'ADMIN' ? 'ADM' : session?.user?.role === 'MANAGER' ? 'MGR' : 'ATD'
+                )}
               </div>
               <motion.div 
                 animate={{ scale: [1, 1.2, 1] }}
@@ -120,11 +132,16 @@ export function Sidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-slate-100 truncate">{session?.user?.name || 'Usuário'}</p>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] truncate">
-                {session?.user?.role === 'ADMIN' ? 'Administrador' : session?.user?.role === 'MANAGER' ? 'Gerente' : 'Atendente'}
+                {session?.user?.role === 'ADMIN' ? 'Administrador' : session?.user?.role === 'MANAGER' ? 'Gerente' : session?.user?.role === 'INTERNAL' ? 'Interno' : 'Atendente'}
               </p>
             </div>
           </div>
         </div>
+
+        <ProfileModal 
+          isOpen={isProfileOpen} 
+          onClose={() => setIsProfileOpen(false)} 
+        />
         
         <button 
           onClick={() => signOut()}

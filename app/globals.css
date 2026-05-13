@@ -163,3 +163,29 @@ body.is-exporting-pdf .group {
 .animate-premium-pulse {
   animation: premium-pulse 2s infinite ease-in-out;
 }
+
+/* Custom Utilities for Modern Login */
+.bg-radial-gradient {
+  background: radial-gradient(circle at center, var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to));
+}
+
+.text-glow-emerald {
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.border-glass {
+  @apply border border-white/10 bg-white/[0.02] backdrop-blur-md;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-emerald-500/20 rounded-full;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-emerald-500/40;
+}

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { telegramService } from '../lib/telegram';
 import { whatsappService } from '../lib/whatsapp';
 import { prisma } from '../lib/prisma';
 
@@ -11,6 +12,36 @@ async function syncInstancesStatus() {
 
     for (const instance of instances) {
       try {
+        if (instance.integration === 'TELEGRAM') {
+          if (!instance.token) {
+            await prisma.whatsappInstance.update({
+              where: { instanceId: instance.instanceId },
+              data: { status: 'DISCONNECTED' }
+            });
+            continue;
+          }
+
+          try {
+            const me = await telegramService.getMe(instance.token);
+            await telegramService.setWebhook(instance.instanceId, instance.token);
+            await prisma.whatsappInstance.update({
+              where: { instanceId: instance.instanceId },
+              data: {
+                status: 'CONNECTED',
+                number: me.username ? `@${me.username}` : String(me.id),
+                qrcode: null
+              }
+            });
+          } catch {
+            await prisma.whatsappInstance.update({
+              where: { instanceId: instance.instanceId },
+              data: { status: 'DISCONNECTED' }
+            });
+          }
+
+          continue;
+        }
+
         const status = await whatsappService.getSessionStatus(instance.instanceId);
         
         // Se a instância existe na Evolution
@@ -83,9 +114,10 @@ app.post('/send-message', async (req, res) => {
     console.log(`[WhatsApp Server] Proxying mensagem para ${number} via Evolution API (${instanceId})`);
     const result = await whatsappService.sendMessage(instanceId, number, text);
     return res.json({ success: true, result });
-  } catch (err: any) {
-    console.error(`[WhatsApp Server] Erro ao enviar mensagem via Evolution:`, err.message);
-    return res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to send message';
+    console.error(`[WhatsApp Server] Erro ao enviar mensagem via Evolution:`, message);
+    return res.status(500).json({ error: message });
   }
 });
 

@@ -1,11 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { GitBranch, Plus, Play, Pause, Trash2, Edit2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function FlowsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    if ((session?.user as any)?.role === 'INTERNAL') {
+      router.replace('/conversations');
+    }
+  }, [session, status, router]);
+
   const [flows, setFlows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,6 +54,22 @@ export default function FlowsPage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDeleteFlow = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este fluxo? Todos os passos vinculados serão perdidos.')) return;
+    try {
+      const res = await fetch(`/api/flows/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchFlows();
+      } else {
+        const data = await res.json();
+        alert(`Erro ao excluir: ${data.error || 'Erro desconhecido'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Falha na rede ao tentar excluir o fluxo.');
     }
   };
 
@@ -128,7 +156,10 @@ export default function FlowsPage() {
                   <Edit2 size={16} />
                   Editar
                 </Link>
-                <button className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all">
+                <button 
+                  onClick={() => handleDeleteFlow(flow.id)}
+                  className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                >
                   <Trash2 size={20} />
                 </button>
               </div>

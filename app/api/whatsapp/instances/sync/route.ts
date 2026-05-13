@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { whatsappService } from '@/lib/whatsapp';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function POST() {
   const session = await getServerSession(authOptions);
@@ -22,6 +22,7 @@ export async function POST() {
     // 2. Sincroniza cada instância com o banco local
     for (const evo of evolutionInstances) {
       const name = evo.instanceName || evo.name || evo.instance?.instanceName || evo.instance?.name;
+      if (!name) continue;
       
       if (!name) {
         console.warn('[Sync] Instância sem nome ignorada:', evo);
@@ -45,9 +46,14 @@ export async function POST() {
       const number = evo.owner || evo.number || evo.instance?.owner || evo.instance?.number;
       const integrationFromEvo = evo.instanceType || evo.instance?.instanceType || evo.type;
       
-      // Busca a instância atual para não sobrescrever o tipo manualmente definido se a Evolution não enviar
-      const existingInstance = await prisma.whatsappInstance.findUnique({
-        where: { instanceId: name }
+      // Busca a instância atual por instanceId ou name para evitar conflitos de restrição única
+      const existingInstance = await prisma.whatsappInstance.findFirst({
+        where: {
+          OR: [
+            { instanceId: name },
+            { name: name }
+          ]
+        }
       });
 
       const integration = integrationFromEvo || existingInstance?.integration || 'WHATSAPP-BAILEYS';
@@ -67,22 +73,28 @@ export async function POST() {
       const status = isOnlineState ? 'CONNECTED' : 'DISCONNECTED';
       const finalIntegration = isOfficial ? 'WHATSAPP-BUSINESS' : integration;
 
-      await prisma.whatsappInstance.upsert({
-        where: { instanceId: name },
-        update: {
-          name: name,
-          status: status,
-          number: number ? String(number).split('@')[0] : undefined,
-          integration: finalIntegration
-        },
-        create: {
-          name: name,
-          instanceId: name,
-          status: status,
-          number: number ? String(number).split('@')[0] : undefined,
-          integration: finalIntegration
-        }
-      });
+      if (existingInstance) {
+        await prisma.whatsappInstance.update({
+          where: { id: existingInstance.id },
+          data: {
+            name: name,
+            instanceId: name,
+            status: status,
+            number: number ? String(number).split('@')[0] : undefined,
+            integration: finalIntegration
+          }
+        });
+      } else {
+        await prisma.whatsappInstance.create({
+          data: {
+            name: name,
+            instanceId: name,
+            status: status,
+            number: number ? String(number).split('@')[0] : undefined,
+            integration: finalIntegration
+          }
+        });
+      }
 
       // Garante que o webhook esteja sempre apontando para a URL atual do Serveo
       console.log(`[Sync] Atualizando Webhook para ${name}...`);

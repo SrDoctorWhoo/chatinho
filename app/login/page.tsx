@@ -38,187 +38,179 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-slate-950">
-      {/* Animated Background Blobs with Framer Motion */}
-      <motion.div 
-        animate={{ 
-          x: [0, 30, -20, 0],
-          y: [0, -50, 20, 0],
-          scale: [1, 1.1, 0.9, 1]
-        }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-0 -left-4 w-96 h-96 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20" 
-      />
-      <motion.div 
-        animate={{ 
-          x: [0, -30, 20, 0],
-          y: [0, 50, -20, 0],
-          scale: [1, 1.1, 0.9, 1]
-        }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-        className="absolute top-0 -right-4 w-96 h-96 bg-teal-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20" 
-      />
-      <motion.div 
-        animate={{ 
-          x: [0, 20, -30, 0],
-          y: [0, 30, -50, 0],
-          scale: [1, 0.9, 1.1, 1]
-        }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 4 }}
-        className="absolute -bottom-8 left-20 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20" 
-      />
-      
-      {/* Grid Pattern Overlay */}
-      <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#10b981 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }} />
+    <div className="relative min-h-screen flex items-center justify-center p-6 overflow-hidden bg-[#020617]">
+      {/* Dynamic Background Elements */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-teal-500/10 blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
+        
+        {/* Subtle Mesh Grid */}
+        <div 
+          className="absolute inset-0 opacity-[0.03]" 
+          style={{ 
+            backgroundImage: `linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)`,
+            backgroundSize: '40px 40px' 
+          }} 
+        />
+        
+        {/* Radial Vignette */}
+        <div className="absolute inset-0 bg-radial-gradient from-transparent via-transparent to-[#020617]/80" />
+      </div>
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-[440px]"
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-10 w-full max-w-[460px]"
       >
         {/* Header Section */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-10">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
-            className="inline-flex items-center justify-center p-3 mb-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 gap-2 px-4"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/10 text-emerald-500/80 mb-6"
           >
-            <Sparkles size={16} />
-            <span className="text-xs font-bold uppercase tracking-[0.2em]">Next-Gen Chat Platform</span>
+            <Sparkles size={12} className="animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Enterprise Solutions</span>
           </motion.div>
           
           <motion.div 
-            initial={{ opacity: 0, rotate: -10 }}
-            animate={{ opacity: 1, rotate: 0 }}
-            transition={{ delay: 0.3, type: "spring" }}
-            className="relative inline-flex mb-6 group"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex flex-col items-center gap-4"
           >
-            <div className="absolute inset-0 bg-emerald-500 blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-            <div className="relative flex items-center justify-center w-20 h-20 rounded-[1.75rem] bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 shadow-2xl shadow-emerald-500/20 transform hover:scale-105 transition-all duration-500">
-              <MessageSquare size={36} strokeWidth={2} />
+            <div className="relative group">
+              <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-full group-hover:bg-emerald-500/30 transition-all duration-700" />
+              <div className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 shadow-2xl transition-transform duration-500 group-hover:scale-105 group-hover:rotate-3">
+                <MessageSquare size={38} className="text-emerald-400" strokeWidth={1.5} />
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <h1 className="text-5xl font-black tracking-tighter text-white">
+                Chat<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">inho</span>
+              </h1>
+              <p className="text-slate-500 text-sm font-medium tracking-wide">
+                Ecossistema de Atendimento Inteligente
+              </p>
             </div>
           </motion.div>
-          
-          <motion.h1 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-4xl font-extrabold tracking-tight text-white"
-          >
-            Chat<span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">inho</span>
-          </motion.h1>
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-slate-400 mt-2 font-medium"
-          >
-            Inteligência e Gestão em Atendimento
-          </motion.p>
         </div>
 
         {/* Login Card */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.6 }}
-          className="glass-panel premium-card rounded-[2.5rem] p-8 md:p-10 shadow-2xl border-white/5 backdrop-blur-2xl bg-white/[0.03]"
+          transition={{ delay: 0.4, duration: 0.6 }}
+          className="relative group"
         >
-          <div className="mb-8 text-center md:text-left">
-            <h2 className="text-2xl font-bold text-white tracking-tight">Acesso ao Painel</h2>
-            <p className="text-slate-500 text-sm mt-1 font-medium">Bem-vindo de volta!</p>
-          </div>
+          {/* Card Outer Glow */}
+          <div className="absolute -inset-px bg-gradient-to-b from-white/10 to-transparent rounded-[2.5rem] blur-sm opacity-50" />
+          
+          <div className="relative bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-2xl overflow-hidden">
+            {/* Subtle Gradient Overlay */}
+            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none" />
+            
+            <div className="relative z-10">
+              <div className="mb-10 text-center md:text-left">
+                <h2 className="text-2xl font-bold text-white tracking-tight">Login</h2>
+                <p className="text-slate-500 text-sm mt-1 font-medium">Insira suas credenciais para continuar</p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 ml-1">
-                E-mail Profissional
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-600 group-focus-within:text-emerald-400 transition-colors">
-                  <Mail size={18} />
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 ml-1 block">
+                    E-mail
+                  </label>
+                  <div className="relative group/input">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within/input:text-emerald-400 transition-colors duration-300">
+                      <Mail size={18} strokeWidth={2} />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="block w-full pl-12 pr-4 py-4 bg-slate-950/50 border border-white/5 rounded-2xl text-white placeholder-slate-700 focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500/40 transition-all duration-300 outline-none hover:border-white/10"
+                      placeholder="seu@email.com"
+                      required
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-12 pr-4 py-4 bg-white/[0.03] border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/40 transition-all outline-none"
-                  placeholder="ex: admin@empresa.com"
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between items-center ml-1">
-                <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
-                  Senha de Acesso
-                </label>
-                <a href="#" className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
-                  Esqueceu?
-                </a>
-              </div>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-600 group-focus-within:text-emerald-400 transition-colors">
-                  <Lock size={18} />
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 block">
+                      Senha
+                    </label>
+                    <a href="#" className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 transition-colors uppercase tracking-wider">
+                      Esqueceu?
+                    </a>
+                  </div>
+                  <div className="relative group/input">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within/input:text-emerald-400 transition-colors duration-300">
+                      <Lock size={18} strokeWidth={2} />
+                    </div>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="block w-full pl-12 pr-4 py-4 bg-slate-950/50 border border-white/5 rounded-2xl text-white placeholder-slate-700 focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500/40 transition-all duration-300 outline-none hover:border-white/10"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-12 pr-4 py-4 bg-white/[0.03] border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/40 transition-all outline-none"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            </div>
 
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex items-center p-4 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-400 text-xs"
-              >
-                <ShieldCheck size={16} className="mr-2 shrink-0" />
-                {error}
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full overflow-hidden py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-2xl transition-all shadow-xl shadow-emerald-500/10 active:scale-[0.98] disabled:opacity-70"
-            >
-              <span className="relative flex items-center justify-center gap-2">
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Entrar no Sistema
-                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </>
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center p-4 rounded-2xl bg-red-500/5 border border-red-500/10 text-red-400 text-xs gap-3"
+                  >
+                    <ShieldCheck size={16} className="shrink-0" />
+                    <span className="font-medium">{error}</span>
+                  </motion.div>
                 )}
-              </span>
-            </button>
-          </form>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="group relative w-full overflow-hidden py-4 px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold rounded-2xl transition-all duration-300 shadow-lg shadow-emerald-500/20 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <span className="relative flex items-center justify-center gap-3">
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="tracking-tight text-base">Entrar no Sistema</span>
+                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform duration-300" />
+                      </>
+                    )}
+                  </span>
+                </button>
+              </form>
+            </div>
+          </div>
         </motion.div>
 
+        {/* Footer */}
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-8 text-center space-y-4"
+          transition={{ delay: 0.7 }}
+          className="mt-12 text-center"
         >
-          <p className="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em]">
-            © 2026 Chatinho Ecosystem • v2.0
-          </p>
-          <div className="flex justify-center gap-6">
-            <a href="#" className="text-slate-500 hover:text-slate-300 text-[10px] font-bold uppercase transition-colors">Suporte</a>
-            <a href="#" className="text-slate-500 hover:text-slate-300 text-[10px] font-bold uppercase transition-colors">Termos</a>
-            <a href="#" className="text-slate-500 hover:text-slate-300 text-[10px] font-bold uppercase transition-colors">Segurança</a>
+          <div className="flex justify-center gap-8 mb-6">
+            <a href="#" className="text-slate-500 hover:text-emerald-400 text-[10px] font-bold uppercase tracking-widest transition-colors">Termos</a>
+            <a href="#" className="text-slate-500 hover:text-emerald-400 text-[10px] font-bold uppercase tracking-widest transition-colors">Privacidade</a>
+            <a href="#" className="text-slate-500 hover:text-emerald-400 text-[10px] font-bold uppercase tracking-widest transition-colors">Segurança</a>
           </div>
+          <p className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.3em]">
+            © 2026 Chatinho Ecosystem <span className="mx-2">•</span> Premium Suite
+          </p>
         </motion.div>
       </motion.div>
     </div>

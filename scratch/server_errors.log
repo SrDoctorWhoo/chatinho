@@ -1,0 +1,179 @@
+
+--- ERROR AT 2026-05-12T12:46:59.426Z ---
+Message: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update()` invocation in
+C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__0dvr7v0._.js:548:150
+
+  545     updateData.isBotActive = false;
+  546 }
+  547 // UPDATE the conversation in DB
+→ 548 await __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update(
+Foreign key constraint violated on the constraint: `Conversation_assignedToId_fkey`
+Stack: PrismaClientKnownRequestError: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update()` invocation in
+C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__0dvr7v0._.js:548:150
+
+  545     updateData.isBotActive = false;
+  546 }
+  547 // UPDATE the conversation in DB
+→ 548 await __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update(
+Foreign key constraint violated on the constraint: `Conversation_assignedToId_fkey`
+    at zr.handleRequestError (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:65:8286)
+    at zr.handleAndLogRequestError (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:65:7581)
+    at zr.request (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:65:7288)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async a (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:75:6862)
+    at async POST (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__0dvr7v0._.js:548:9)
+    at async AppRouteRouteModule.do (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47321)
+    at async responseGenerator (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17684:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:227216)
+    at async handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17747:32)
+    at async Module.handler (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17801:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1454:9)
+    at async DevServer.renderPageComponent (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1506:24)
+    at async DevServer.renderToResponseImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1556:32)
+    at async DevServer.pipeImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1043:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:934:17)
+    at async C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\start-server.js:225:13)
+Code: P2003
+    
+--- ERROR AT 2026-05-12T12:48:48.353Z ---
+Message: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update()` invocation in
+C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__0dvr7v0._.js:548:150
+
+  545     updateData.isBotActive = false;
+  546 }
+  547 // UPDATE the conversation in DB
+→ 548 await __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update(
+Foreign key constraint violated on the constraint: `Conversation_assignedToId_fkey`
+Stack: PrismaClientKnownRequestError: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update()` invocation in
+C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__0dvr7v0._.js:548:150
+
+  545     updateData.isBotActive = false;
+  546 }
+  547 // UPDATE the conversation in DB
+→ 548 await __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].conversation.update(
+Foreign key constraint violated on the constraint: `Conversation_assignedToId_fkey`
+    at zr.handleRequestError (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:65:8286)
+    at zr.handleAndLogRequestError (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:65:7581)
+    at zr.request (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:65:7288)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async a (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\@prisma\client\runtime\client.js:75:6862)
+    at async POST (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__0dvr7v0._.js:548:9)
+    at async AppRouteRouteModule.do (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47321)
+    at async responseGenerator (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17684:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:227216)
+    at async handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17747:32)
+    at async Module.handler (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17801:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1454:9)
+    at async DevServer.renderPageComponent (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1506:24)
+    at async DevServer.renderToResponseImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1556:32)
+    at async DevServer.pipeImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1043:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:934:17)
+    at async C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\start-server.js:225:13)
+Code: P2003
+Session User ID: clx806737
+Session User Name: Administrador
+    
+--- ERROR AT 2026-05-12T21:16:18.307Z ---
+Message: Erro ao enviar mensagem via Evolution API
+Stack: Error: Erro ao enviar mensagem via Evolution API
+    at POST (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__00~hqnr._.js:565:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AppRouteRouteModule.do (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47321)
+    at async responseGenerator (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17684:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:227216)
+    at async handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17747:32)
+    at async Module.handler (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17801:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1454:9)
+    at async DevServer.renderPageComponent (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1506:24)
+    at async DevServer.renderToResponseImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1556:32)
+    at async DevServer.pipeImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1043:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:934:17)
+    at async C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\start-server.js:225:13)
+Code: 
+Session User ID: cmp1bhkgx0000cctiy6jqb90w
+Session User Name: Administrador
+    
+--- ERROR AT 2026-05-12T21:16:33.939Z ---
+Message: Erro ao enviar mensagem via Evolution API
+Stack: Error: Erro ao enviar mensagem via Evolution API
+    at POST (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__00~hqnr._.js:565:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AppRouteRouteModule.do (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47321)
+    at async responseGenerator (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17684:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:227216)
+    at async handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17747:32)
+    at async Module.handler (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17801:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1454:9)
+    at async DevServer.renderPageComponent (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1506:24)
+    at async DevServer.renderToResponseImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1556:32)
+    at async DevServer.pipeImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1043:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:934:17)
+    at async C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\start-server.js:225:13)
+Code: 
+Session User ID: cmp1bhkgx0000cctiy6jqb90w
+Session User Name: Administrador
+    
+--- ERROR AT 2026-05-12T21:18:00.256Z ---
+Message: Erro ao enviar mensagem via Evolution API
+Stack: Error: Erro ao enviar mensagem via Evolution API
+    at POST (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\[root-of-the-server]__00~hqnr._.js:565:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AppRouteRouteModule.do (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47321)
+    at async responseGenerator (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17684:38)
+    at async AppRouteRouteModule.handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:227216)
+    at async handleResponse (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17747:32)
+    at async Module.handler (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\.next\dev\server\chunks\node_modules_next_0huqbqf._.js:17801:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1454:9)
+    at async DevServer.renderPageComponent (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1506:24)
+    at async DevServer.renderToResponseImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1556:32)
+    at async DevServer.pipeImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:1043:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\base-server.js:934:17)
+    at async C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (C:\Users\celio.veloso\Documents\Projetinho 2\Chatinho\node_modules\next\dist\server\lib\start-server.js:225:13)
+Code: 
+Session User ID: cmp1bhkgx0000cctiy6jqb90w
+Session User Name: Administrador
+    

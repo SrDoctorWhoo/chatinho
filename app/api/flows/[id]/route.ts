@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function GET(
   req: Request,
@@ -18,7 +18,7 @@ export async function GET(
       include: {
         nodes: {
           include: { options: true },
-          orderBy: { id: 'asc' }
+          orderBy: { order: 'asc' }
         },
         instances: { select: { id: true, name: true } }
       }
@@ -81,6 +81,10 @@ export async function PUT(
             routingDepartmentId: node.routingDepartmentId || null,
             variableName: node.variableName || null,
             targetFlowId: node.targetFlowId || null,
+            title: node.title || null,
+            footer: node.footer || null,
+            buttonText: node.buttonText || null,
+            order: nodes.indexOf(node),
             // Não seta o nextStepId ainda, pois pode depender de um nó que ainda não foi criado
           }
         });
@@ -120,16 +124,90 @@ export async function PUT(
           }
         }
       }
+    }, {
+      timeout: 30000,
+      maxWait: 10000
     });
 
     const updatedFlow = await prisma.chatbotFlow.findUnique({
       where: { id },
-      include: { nodes: { include: { options: true } } }
+      include: {
+        nodes: {
+          orderBy: { order: 'asc' },
+          include: { options: true }
+        }
+      }
     });
+
+    // 📝 Registrar Log
+    try {
+      const { createAuditLog } = await import('@/lib/audit');
+      await createAuditLog({
+        userId: session?.user?.id,
+        action: 'UPDATE',
+        description: `Fluxo atualizado: ${name}`,
+        target: 'Fluxos',
+        type: 'info'
+      });
+    } catch (e) {}
 
     return NextResponse.json(updatedFlow);
   } catch (error: any) {
-    console.error('[Flows API] Error updating flow:', error);
+    // Registrar log de erro
+    try {
+      const { createAuditLog } = await import('@/lib/audit');
+      await createAuditLog({
+        action: 'LOG',
+        description: `Falha ao atualizar fluxo: ${error.message || 'Erro desconhecido'}`,
+        target: 'Fluxos',
+        type: 'error'
+      });
+    } catch (e) {}
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const flow = await prisma.chatbotFlow.findUnique({ where: { id } });
+    if (!flow) return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+
+    await prisma.chatbotFlow.delete({ where: { id } });
+
+    // 📝 Registrar Log
+    try {
+      const { createAuditLog } = await import('@/lib/audit');
+      await createAuditLog({
+        userId: session?.user?.id,
+        action: 'DELETE',
+        description: `Fluxo excluído: ${flow.name}`,
+        target: 'Fluxos',
+        type: 'warning'
+      });
+    } catch (e) {}
+
+    return NextResponse.json({ message: 'Flow deleted successfully' });
+  } catch (error: any) {
+    // Registrar log de erro
+    try {
+      const { createAuditLog } = await import('@/lib/audit');
+      await createAuditLog({
+        action: 'LOG',
+        description: `Falha ao excluir fluxo: ${error.message || 'Erro desconhecido'}`,
+        target: 'Fluxos',
+        type: 'error'
+      });
+    } catch (e) {}
+
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+

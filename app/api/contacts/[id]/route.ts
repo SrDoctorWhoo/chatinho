@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function PATCH(
   req: Request,
@@ -19,6 +19,7 @@ export async function PATCH(
       data: {
         name: body.name !== undefined ? body.name : undefined,
         notes: body.notes !== undefined ? body.notes : undefined,
+        observations: body.observations !== undefined ? body.observations : undefined,
         email: body.email !== undefined ? body.email : undefined,
       }
     });

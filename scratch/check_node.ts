@@ -23,7 +23,7 @@ async function main() {
   console.log('\n--- OPÇÕES ---');
   for (const opt of node.options) {
     const targetNode = await prisma.chatbotNode.findUnique({
-      where: { id: opt.targetNodeId },
+      where: { id: opt.targetNodeId as string },
       include: { integration: true }
     });
     console.log(`Opção: "${opt.label}" (Keyword: "${opt.keyword}")`);

@@ -65,16 +65,31 @@ export default function IntegrationSandbox({ node, integrations, onUpdate }: Int
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Input */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Variáveis (JSON)</label>
-            <Code size={12} className="text-slate-400" />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Mensagem de Teste (Simula o Usuário)</label>
+              <Code size={12} className="text-slate-400" />
+            </div>
+            <textarea
+              value={node.content || ''}
+              onChange={(e) => onUpdate({ content: e.target.value })}
+              placeholder="Digite aqui o que o cliente mandaria no WhatsApp..."
+              className="w-full h-20 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[11px] font-mono outline-none focus:ring-2 focus:ring-blue-500/20 transition-all leading-relaxed"
+            />
           </div>
-          <textarea
-            value={testVariables}
-            onChange={(e) => setTestVariables(e.target.value)}
-            className="w-full h-40 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[11px] font-mono outline-none focus:ring-2 focus:ring-blue-500/20 transition-all leading-relaxed"
-          />
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Variáveis Injetadas (JSON)</label>
+              <Code size={12} className="text-slate-400" />
+            </div>
+            <textarea
+              value={testVariables}
+              onChange={(e) => setTestVariables(e.target.value)}
+              className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[11px] font-mono outline-none focus:ring-2 focus:ring-blue-500/20 transition-all leading-relaxed"
+            />
+          </div>
         </div>
 
         {/* Output */}

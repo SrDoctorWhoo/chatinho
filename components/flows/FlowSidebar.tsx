@@ -11,9 +11,10 @@ import {
   Search, 
   Zap,
   ChevronRight,
-  GitBranch
+  GitBranch,
+  HelpCircle
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface FlowSidebarProps {
@@ -21,17 +22,54 @@ interface FlowSidebarProps {
   selectedNodeId: string | null;
   onSelectNode: (id: string) => void;
   onAddNode: (type: string) => void;
+  onReorder: (newNodes: any[]) => void;
   isOpen?: boolean;
   onClose?: () => void;
 }
 
 const nodeTypes = [
-  { id: 'MESSAGE', label: 'Mensagem', icon: MessageSquare, color: 'blue' },
-  { id: 'MENU', label: 'Menu Texto', icon: List, color: 'purple' },
-  { id: 'LIST', label: 'Lista Wpp', icon: Layout, color: 'emerald' },
-  { id: 'WAIT_INPUT', label: 'Pedir Dado', icon: Type, color: 'amber' },
-  { id: 'AI_DIFY', label: 'IA & Webhook', icon: Bot, color: 'indigo' },
-  { id: 'TRANSFER', label: 'Humano', icon: User, color: 'orange' }
+  { 
+    id: 'MESSAGE', 
+    label: 'Mensagem', 
+    icon: MessageSquare, 
+    color: 'blue',
+    description: 'Envia texto simples. Ideal para saudações.' 
+  },
+  { 
+    id: 'MENU', 
+    label: 'Menu Texto', 
+    icon: List, 
+    color: 'purple',
+    description: 'Menu numérico (1, 2, 3...) via texto.' 
+  },
+  { 
+    id: 'LIST', 
+    label: 'Lista Wpp', 
+    icon: Layout, 
+    color: 'emerald',
+    description: 'Menu interativo oficial do WhatsApp.' 
+  },
+  { 
+    id: 'WAIT_INPUT', 
+    label: 'Pedir Dado', 
+    icon: Type, 
+    color: 'amber',
+    description: 'Captura dados (CPF, E-mail) do cliente.' 
+  },
+  { 
+    id: 'AI_DIFY', 
+    label: 'IA & Webhook', 
+    icon: Bot, 
+    color: 'indigo',
+    description: 'Respostas inteligentes via IA (Dify).' 
+  },
+  { 
+    id: 'TRANSFER', 
+    label: 'Humano', 
+    icon: User, 
+    color: 'orange',
+    description: 'Transfere para um atendente real.' 
+  }
 ];
 
 export default function FlowSidebar({ 
@@ -39,6 +77,7 @@ export default function FlowSidebar({
   selectedNodeId, 
   onSelectNode, 
   onAddNode,
+  onReorder,
   isOpen,
   onClose
 }: FlowSidebarProps) {
@@ -79,7 +118,6 @@ export default function FlowSidebar({
 
         <div className="h-px bg-slate-100 dark:bg-slate-800/50 mx-2" />
 
-        {/* Lista de Passos */}
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Estrutura do Fluxo</h3>
@@ -88,61 +126,98 @@ export default function FlowSidebar({
             </span>
           </div>
 
-          <div className="space-y-2">
-            <AnimatePresence mode="popLayout">
+          <Reorder.Group 
+            axis="y" 
+            values={nodes} 
+            onReorder={onReorder}
+            className="space-y-2"
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
               {nodes.map((node, idx) => {
                 const typeInfo = nodeTypes.find(t => t.id === node.type) || nodeTypes[0];
                 const isSelected = selectedNodeId === node.id;
 
                 return (
-                  <motion.button
+                  <Reorder.Item
                     key={node.id}
+                    value={node}
                     layout
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    onClick={() => onSelectNode(node.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3.5 rounded-2xl border transition-all text-left relative overflow-hidden group",
-                      isSelected
-                        ? "bg-blue-600 border-blue-500 shadow-lg shadow-blue-600/20 text-white"
-                        : "bg-white dark:bg-slate-900 border-slate-200/60 dark:border-slate-800/60 text-slate-700 dark:text-slate-300 hover:border-blue-500/30 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    )}
+                    className="relative"
                   >
-                    {isSelected && (
-                      <motion.div 
-                        layoutId="active-pill"
-                        className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 -z-10"
-                      />
-                    )}
+                    <div
+                      onClick={() => onSelectNode(node.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3.5 rounded-2xl border transition-all text-left relative overflow-hidden group cursor-pointer",
+                        isSelected
+                          ? "bg-blue-600 border-blue-500 shadow-lg shadow-blue-600/20 text-white"
+                          : "bg-white dark:bg-slate-900 border-slate-200/60 dark:border-slate-800/60 text-slate-700 dark:text-slate-300 hover:border-blue-500/30 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      )}
+                    >
+                      {isSelected && (
+                        <motion.div 
+                          layoutId="active-pill"
+                          className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 -z-10"
+                        />
+                      )}
 
-                    <div className={cn(
-                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
-                      isSelected 
-                        ? "bg-white/20 text-white" 
-                        : `bg-${typeInfo.color}-500/10 text-${typeInfo.color}-500`
-                    )}>
-                      <typeInfo.icon size={18} />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className={cn(
-                          "text-[9px] font-black uppercase tracking-widest mb-0.5",
-                          isSelected ? "text-blue-100/80" : "text-slate-400"
-                        )}>
-                          PASSO {idx + 1}
-                        </p>
-                        {isSelected && <ChevronRight size={12} className="text-white/60" />}
-                      </div>
-                      <p className={cn(
-                        "text-xs font-bold truncate",
-                        isSelected ? "text-white" : "text-slate-700 dark:text-slate-200"
+                      <div className={cn(
+                        "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
+                        isSelected 
+                          ? "bg-white/20 text-white" 
+                          : `bg-${typeInfo.color}-500/10 text-${typeInfo.color}-500`
                       )}>
-                        {node.content ? `"${node.content.substring(0, 30)}..."` : "Sem conteúdo"}
-                      </p>
+                        <typeInfo.icon size={18} />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className={cn(
+                            "text-[9px] font-black uppercase tracking-widest mb-0.5",
+                            isSelected ? "text-blue-100/80" : "text-slate-400"
+                          )}>
+                            PASSO {idx + 1}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (idx > 0) {
+                                  const newNodes = [...nodes];
+                                  [newNodes[idx], newNodes[idx-1]] = [newNodes[idx-1], newNodes[idx]];
+                                  onReorder(newNodes);
+                                }
+                              }}
+                              className={cn("p-1 rounded hover:bg-black/10 z-10", idx === 0 && "opacity-0 pointer-events-none")}
+                            >
+                              <ChevronRight className="-rotate-90" size={10} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (idx < nodes.length - 1) {
+                                  const newNodes = [...nodes];
+                                  [newNodes[idx], newNodes[idx+1]] = [newNodes[idx+1], newNodes[idx]];
+                                  onReorder(newNodes);
+                                }
+                              }}
+                              className={cn("p-1 rounded hover:bg-black/10 z-10", idx === nodes.length - 1 && "opacity-0 pointer-events-none")}
+                            >
+                              <ChevronRight className="rotate-90" size={10} />
+                            </button>
+                          </div>
+                        </div>
+                        <p className={cn(
+                          "text-xs font-bold truncate",
+                          isSelected ? "text-white" : "text-slate-700 dark:text-slate-200"
+                        )}>
+                          {node.title || (node.content ? `"${node.content.substring(0, 30)}..."` : "Sem conteúdo")}
+                        </p>
+                      </div>
                     </div>
-                  </motion.button>
+                  </Reorder.Item>
                 );
               })}
             </AnimatePresence>
@@ -158,7 +233,7 @@ export default function FlowSidebar({
                 </div>
               </div>
             )}
-          </div>
+          </Reorder.Group>
         </div>
       </div>
       
@@ -169,6 +244,26 @@ export default function FlowSidebar({
           <p className="text-[9px] leading-snug text-slate-500 font-medium">
             A ordem visual aqui não altera a execução. O bot segue os links de "Próximo Passo".
           </p>
+        </div>
+      </div>
+      
+      <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="flex items-center gap-2 mb-3">
+          <HelpCircle size={14} className="text-blue-500" />
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Guia de Componentes</h4>
+        </div>
+        <div className="space-y-3">
+          {nodeTypes.map(t => (
+            <div key={t.id} className="group/guide">
+              <div className="flex items-center gap-2 mb-0.5">
+                <t.icon size={10} className={`text-${t.color}-500`} />
+                <span className="text-[9px] font-black uppercase text-slate-700 dark:text-slate-300">{t.label}</span>
+              </div>
+              <p className="text-[9px] text-slate-500 leading-tight">
+                {t.description}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </aside>

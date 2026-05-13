@@ -9,7 +9,10 @@ export async function GET() {
       difyEnabled: false, 
       difyApiKey: '', 
       difyUrl: '', 
-      chatExpirationMinutes: 60 
+      chatExpirationMinutes: 60,
+      internetIntegId: null,
+      comercialIntegId: null,
+      welcomeFlowId: null
     });
   } catch (error) {
     return NextResponse.json({ error: 'Erro ao buscar configurações' }, { status: 500 });
@@ -27,7 +30,10 @@ export async function POST(req: Request) {
         difyEnabled: body.difyEnabled,
         difyApiKey: body.difyApiKey,
         difyUrl: body.difyUrl,
-        chatExpirationMinutes: parseInt(body.chatExpirationMinutes) || 60
+        chatExpirationMinutes: parseInt(body.chatExpirationMinutes) || 60,
+        internetIntegId: body.internetIntegId || null,
+        comercialIntegId: body.comercialIntegId || null,
+        welcomeFlowId: body.welcomeFlowId || null
       },
       create: { 
         id: 'global', 
@@ -35,9 +41,30 @@ export async function POST(req: Request) {
         difyEnabled: body.difyEnabled ?? false,
         difyApiKey: body.difyApiKey || '',
         difyUrl: body.difyUrl || '',
-        chatExpirationMinutes: parseInt(body.chatExpirationMinutes) || 60
+        chatExpirationMinutes: parseInt(body.chatExpirationMinutes) || 60,
+        internetIntegId: body.internetIntegId || null,
+        comercialIntegId: body.comercialIntegId || null,
+        welcomeFlowId: body.welcomeFlowId || null
       }
     });
+
+    // 📝 Registrar Log
+    try {
+      const { getServerSession } = await import('next-auth');
+      const { authOptions } = await import('@/lib/auth');
+      const { createAuditLog } = await import('@/lib/audit');
+      const session = await getServerSession(authOptions);
+      
+      await createAuditLog({
+        userId: session?.user?.id,
+        action: 'UPDATE',
+        description: 'Configurações globais do bot atualizadas',
+        target: 'Configurações',
+        type: 'info'
+      });
+    } catch (e) {
+      console.error('[Settings] Log error:', e);
+    }
 
     return NextResponse.json(settings);
   } catch (error) {

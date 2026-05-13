@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { 
   User, Phone, MoreVertical, Search, CheckCircle2, XCircle, 
   FileText, PanelLeftOpen, PanelLeftClose, X, UserPlus, Pause, Bot,
-  Play, Download, Eye
+  Play, Download, Eye, GitBranch, Send, MessageSquare, Smartphone
 } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,6 +60,7 @@ export function ChatWindow({
   const [contactName, setContactName] = useState(conversation.contact.name || '');
   const [contactEmail, setContactEmail] = useState(conversation.contact.email || '');
   const [contactNotes, setContactNotes] = useState(conversation.contact.notes || '');
+  const [contactObservations, setContactObservations] = useState(conversation.contact.observations || '');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
@@ -72,6 +73,7 @@ export function ChatWindow({
     setContactName(conversation.contact.name || '');
     setContactEmail(conversation.contact.email || '');
     setContactNotes(conversation.contact.notes || '');
+    setContactObservations(conversation.contact.observations || '');
   }, [conversation.id]);
 
   useEffect(() => {
@@ -97,8 +99,12 @@ export function ChatWindow({
     : messages;
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop } = e.currentTarget;
-    if (scrollTop === 0 && hasMore && !isFetchingMore.current && !searchTerm) {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // No flex-col-reverse, o topo (mensagens antigas) é quando o scrollTop atinge o limite superior
+    // Math.abs para lidar com variações de browser em col-reverse
+    const isAtTop = Math.abs(scrollTop) + clientHeight >= scrollHeight - 50;
+
+    if (isAtTop && hasMore && !isFetchingMore.current && !searchTerm) {
       isFetchingMore.current = true;
       prevScrollHeight.current = e.currentTarget.scrollHeight;
       onLoadMore?.();
@@ -108,23 +114,9 @@ export function ChatWindow({
   useEffect(() => {
     if (scrollRef.current) {
       if (isInitialLoad.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         isInitialLoad.current = false;
       } else if (isFetchingMore.current) {
-        // Estabiliza o scroll ao carregar histórico antigo
-        const newScrollHeight = scrollRef.current.scrollHeight;
-        const heightDiff = newScrollHeight - prevScrollHeight.current;
-        scrollRef.current.scrollTop = heightDiff;
         isFetchingMore.current = false;
-      } else {
-        // Somente rola suave se estiver próximo do fundo ou for nova mensagem
-        const isNearBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight < 200;
-        if (isNearBottom) {
-          scrollRef.current.scrollTo({
-            top: scrollRef.current.scrollHeight,
-            behavior: 'smooth'
-          });
-        }
       }
     }
   }, [messages]);
@@ -146,9 +138,15 @@ export function ChatWindow({
     setUpdating(true);
     try {
       const res = await fetch(`/api/conversations/${conversation.id}/close`, { method: 'POST' });
-      if (res.ok) onStatusUpdate();
+      if (res.ok) {
+        onStatusUpdate();
+      } else {
+        const errorData = await res.json();
+        alert(`Erro ao encerrar atendimento: ${errorData.error || 'Erro desconhecido'}`);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Erro ao fechar conversa:', err);
+      alert('Erro de conexão ao tentar encerrar o atendimento.');
     } finally {
       setUpdating(false);
     }
@@ -356,7 +354,7 @@ export function ChatWindow({
     setActiveModal(null);
   };
 
-  const handleUpdateContact = async (data: { name?: string, notes?: string, email?: string }) => {
+  const handleUpdateContact = async (data: { name?: string, notes?: string, observations?: string, email?: string }) => {
     setUpdating(true);
     try {
       const res = await fetch(`/api/contacts/${conversation.contact.id}`, {
@@ -431,31 +429,61 @@ export function ChatWindow({
           </div>
           
           <div className="flex flex-col cursor-pointer" onClick={() => setActiveModal('edit')}>
-            <h2 className="text-white font-bold text-lg tracking-tight leading-none mb-1.5 flex items-center gap-2">
-              {conversation.contact.name || conversation.contact.number}
-              {conversation.contact.email && (
-                <span className="text-[10px] font-medium text-slate-500 lowercase px-2 py-0.5 bg-white/5 rounded-full border border-white/5">
-                  {conversation.contact.email}
-                </span>
-              )}
-            </h2>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  conversation.status === 'QUEUED' ? "bg-orange-500 animate-pulse" : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                )} />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {conversation.status === 'QUEUED' ? 'Fila de Espera' : 'Em Atendimento'}
-                </span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-xl font-black text-white tracking-tight leading-none">{conversation.contact.name || conversation.contact.number}</h2>
+                {conversation.platform === 'TELEGRAM' ? (
+                  <div className="p-1 rounded-md bg-blue-500/20 text-blue-400">
+                    <Send size={12} strokeWidth={3} />
+                  </div>
+                ) : (
+                  <div className="p-1 rounded-md bg-emerald-500/20 text-emerald-400">
+                    <Smartphone size={12} strokeWidth={3} />
+                  </div>
+                )}
               </div>
-              {conversation.contact.notes && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-lg w-fit">
-                   <span className="text-[11px] text-amber-500 font-bold italic truncate max-w-[400px]">
-                     📝 {conversation.contact.notes}
-                   </span>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border",
+                    conversation.status === 'QUEUED' ? "bg-orange-500/10 border-orange-500/20 text-orange-500" :
+                    conversation.status === 'ACTIVE' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" :
+                    "bg-slate-500/10 border-white/5 text-slate-500"
+                  )}>
+                    {conversation.status === 'QUEUED' ? 'Fila de Espera' :
+                     conversation.status === 'ACTIVE' ? 'Em Atendimento' : 'Atendimento Finalizado'}
+                  </div>
+                  <div className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                    #{conversation.protocol || '---'}
+                  </div>
+                  <div className="flex items-center gap-2 ml-1">
+                    <p className="text-[11px] font-bold text-slate-400 tracking-wide uppercase">
+                      {conversation.contact.number}
+                    </p>
+                    <span className="w-1 h-1 rounded-full bg-slate-700" />
+                    <span className="text-[9px] font-black text-emerald-500/80 uppercase tracking-widest">
+                      {conversation.platform || 'WhatsApp'}
+                    </span>
+                  </div>
                 </div>
-              )}
+                
+                <div className="flex flex-wrap gap-2">
+                  {conversation.contact.notes?.split('\n').filter(Boolean).map((note: string, i: number) => (
+                    <div key={`note-${i}`} className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-lg w-fit">
+                      <span className="text-[10px] text-amber-500 font-bold italic truncate max-w-[150px]">
+                        📝 {note}
+                      </span>
+                    </div>
+                  ))}
+                  {conversation.contact.observations?.split('\n').filter(Boolean).map((obs: string, i: number) => (
+                    <div key={`obs-${i}`} className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-lg w-fit">
+                      <span className="text-[10px] text-blue-400 font-bold italic truncate max-w-[150px]">
+                        👁️ {obs}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -570,14 +598,20 @@ export function ChatWindow({
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ações Rápidas</span>
                   </div>
 
-                  {conversation.contact.notes && (
-                    <div className="px-4 py-3 bg-amber-500/5 border-y border-amber-500/10 mb-2">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Notas do Contato</span>
-                      </div>
-                      <p className="text-xs text-amber-200/70 italic leading-relaxed">
-                        "{conversation.contact.notes}"
-                      </p>
+                  {(conversation.contact.notes || conversation.contact.observations) && (
+                    <div className="px-4 py-3 bg-slate-950/40 border-y border-white/5 mb-2 space-y-3">
+                      {conversation.contact.notes && (
+                        <div>
+                          <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest block mb-1">Notas Rápidas</span>
+                          <p className="text-[11px] text-slate-400 italic whitespace-pre-wrap">"{conversation.contact.notes}"</p>
+                        </div>
+                      )}
+                      {conversation.contact.observations && (
+                        <div>
+                          <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest block mb-1">Observações</span>
+                          <p className="text-[11px] text-slate-400 italic whitespace-pre-wrap">"{conversation.contact.observations}"</p>
+                        </div>
+                      )}
                     </div>
                   )}
                   
@@ -636,13 +670,64 @@ export function ChatWindow({
         ref={scrollRef}
         id="messages-container"
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-8 space-y-6 z-10 custom-scrollbar bg-[#0b141a]"
+        className="flex-1 overflow-y-auto px-6 py-8 flex flex-col-reverse z-10 custom-scrollbar bg-[#0b141a]"
       >
+        <AnimatePresence initial={false}>
+          {displayedMessages.map((msg: any, idx) => {
+            const nextMsg: any = idx > 0 ? displayedMessages[idx - 1] : null; // Mensagem mais recente na UI
+            const prevMsg: any = idx < displayedMessages.length - 1 ? displayedMessages[idx + 1] : null; // Mensagem mais antiga na UI
+            
+            // Com flex-col-reverse, o topo visual é o fim do array
+            const isNewProtocol = !prevMsg || prevMsg.conversationId !== msg.conversationId;
+            
+            return (
+              <React.Fragment key={msg.id}>
+                <div className="mt-6">
+                  <MessageItem 
+                    msg={msg} 
+                    idx={idx} 
+                    conversation={conversation} 
+                    totalMessages={displayedMessages.length}
+                    onPlayAudio={() => {}} 
+                    shouldAnimate={!isInitialLoad.current && !isFetchingMore.current}
+                  />
+                </div>
+                {isNewProtocol && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col items-center justify-center py-8 relative"
+                  >
+                    <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                    <div className="relative flex flex-col items-center gap-2">
+                      <div className="px-4 py-1.5 bg-slate-900 border border-white/10 rounded-full shadow-2xl flex items-center gap-2">
+                        <div className={cn(
+                          "w-1.5 h-1.5 rounded-full",
+                          msg.conversation?.status === 'CLOSED' ? "bg-slate-500" : "bg-emerald-500 animate-pulse"
+                        )} />
+                        <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">
+                          Atendimento {msg.conversation?.protocol || 'Protocolo em Geração...'}
+                        </span>
+                      </div>
+                      {msg.conversation?.department?.name && (
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                          Setor: {msg.conversation.department.name}
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </AnimatePresence>
+
         {hasMore && (
           <div className="flex justify-center py-4">
              <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
           </div>
         )}
+
         {/* PDF Exclusive Header (Visible only during capture) */}
         <div 
           id="pdf-export-header" 
@@ -667,20 +752,6 @@ export function ChatWindow({
           </div>
           <div className="h-px bg-white/10 w-full mt-4" />
         </div>
-
-        <AnimatePresence initial={false}>
-          {displayedMessages.map((msg, idx) => (
-            <MessageItem 
-              key={msg.id} 
-              msg={msg} 
-              idx={idx} 
-              conversation={conversation} 
-              totalMessages={displayedMessages.length}
-              onPlayAudio={() => {}} // Placeholder if global state is needed
-              shouldAnimate={!isInitialLoad.current && !isFetchingMore.current} // Não anima na carga inicial nem no scroll infinito
-            />
-          ))}
-        </AnimatePresence>
       </div>
 
       {mounted && activeModal && createPortal(
@@ -781,12 +852,23 @@ export function ChatWindow({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black text-[#8696a0] uppercase tracking-widest mb-2">Observações e Notas</label>
+                    <label className="block text-[10px] font-black text-[#8696a0] uppercase tracking-widest mb-2">Notas Rápidas</label>
                     <textarea 
                       value={contactNotes} 
                       onChange={(e) => setContactNotes(e.target.value)}
+                      rows={2}
+                      placeholder="Anote lembretes rápidos aqui..."
+                      className="w-full bg-[#2a3942] border border-white/10 rounded-lg p-3 text-white outline-none focus:border-[#00a884] resize-none transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-[#8696a0] uppercase tracking-widest mb-2">Observações Detalhadas</label>
+                    <textarea 
+                      value={contactObservations} 
+                      onChange={(e) => setContactObservations(e.target.value)}
                       rows={4}
-                      placeholder="Anote informações importantes aqui..."
+                      placeholder="Informações detalhadas sobre o cliente..."
                       className="w-full bg-[#2a3942] border border-white/10 rounded-lg p-3 text-white outline-none focus:border-[#00a884] resize-none transition-all"
                     />
                   </div>
@@ -803,7 +885,7 @@ export function ChatWindow({
                   <div className="flex gap-3">
                     <button onClick={handleCloseModal} className="px-4 py-2 text-[#8696a0] hover:text-white text-xs font-bold uppercase tracking-widest">Cancelar</button>
                     <button 
-                      onClick={() => handleUpdateContact({ name: contactName, email: contactEmail, notes: contactNotes })} 
+                      onClick={() => handleUpdateContact({ name: contactName, email: contactEmail, notes: contactNotes, observations: contactObservations })} 
                       disabled={updating} 
                       className="px-6 py-2 bg-[#00a884] text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#06cf9c] disabled:opacity-50 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
                     >
@@ -992,6 +1074,35 @@ const CustomAudioPlayer = React.memo(function CustomAudioPlayer({ url, isFromMe 
 
 // Componente de Item de Mensagem Memoizado
 const MessageItem = React.memo(function MessageItem({ msg, idx, conversation, totalMessages, onPlayAudio, shouldAnimate }: any) {
+  if (msg.type === 'system') {
+    return (
+      <motion.div
+        initial={shouldAnimate ? { opacity: 0, scale: 0.95 } : false}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex justify-center w-full my-6 px-10"
+      >
+        <div className="flex flex-col items-center gap-2 max-w-lg text-center">
+          <div className="px-5 py-2.5 bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl flex items-center gap-4 group hover:border-blue-500/30 transition-all">
+             <div className="p-2 bg-blue-500/20 rounded-2xl text-blue-400 group-hover:scale-110 transition-transform">
+               <GitBranch size={16} />
+             </div>
+             <p className="text-[11px] font-medium text-slate-100 leading-relaxed tracking-wide">
+               {msg.body.split(/(\*\*.*?\*\*)/).map((part: string, i: number) => {
+                  if (part.startsWith('**') && part.endsWith('**')) {
+                    return <span key={i} className="font-black text-white decoration-blue-500/50 underline-offset-4">{part.slice(2, -2)}</span>;
+                  }
+                  return part;
+                })}
+             </p>
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 opacity-50">
+             Log de Sistema • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={shouldAnimate ? { opacity: 0, y: 10, scale: 0.95 } : false}
@@ -1009,10 +1120,17 @@ const MessageItem = React.memo(function MessageItem({ msg, idx, conversation, to
             className={cn(
               "px-4 py-3 rounded-2xl text-[14.5px] leading-relaxed shadow-xl relative overflow-hidden",
               msg.fromMe 
-                ? "bg-gradient-to-br from-[#00a884] to-[#05cd9c] text-[#0b141a] font-semibold rounded-tr-sm ring-1 ring-white/10" 
+                ? (msg.type === 'internal' 
+                    ? "bg-amber-500/20 text-amber-100 border border-amber-500/30 font-medium italic rounded-tr-sm"
+                    : "bg-gradient-to-br from-[#00a884] to-[#05cd9c] text-[#0b141a] font-semibold rounded-tr-sm ring-1 ring-white/10")
                 : "bg-[#202c33] text-[#e9edef] border border-white/5 rounded-tl-sm shadow-md"
             )}
           >
+            {msg.type === 'internal' && (
+              <div className="flex items-center gap-1 mb-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest">
+                <FileText size={12} /> Nota Interna
+              </div>
+            )}
             {/* Media Display */}
             {msg.type === 'image' && msg.mediaUrl && (
               <div className="mb-2 -mx-4 -mt-3 relative group">
@@ -1052,7 +1170,7 @@ const MessageItem = React.memo(function MessageItem({ msg, idx, conversation, to
             "flex items-center gap-1.5 mt-2 opacity-60",
             msg.fromMe ? "justify-end" : "justify-start"
           )}>
-            {msg.fromMe && !msg.body?.includes('Atendente') && (
+            {msg.fromMe && !msg.body?.includes('Atendente') && msg.type !== 'internal' && (
               <span className="text-[9px] font-black text-emerald-500/80 uppercase tracking-widest mr-auto flex items-center gap-1">
                 <Bot size={10} /> Robô / Fluxo
               </span>

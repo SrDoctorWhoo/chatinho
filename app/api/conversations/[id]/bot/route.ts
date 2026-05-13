@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(
   req: Request,
@@ -27,7 +27,15 @@ export async function POST(
         isBotActive: active,
         ...(active ? { status: 'BOT' } : {})
       },
-      include: { contact: true }
+      include: { 
+        contact: true,
+        department: true,
+        assignedTo: { select: { id: true, name: true } },
+        messages: {
+          take: 1,
+          orderBy: { timestamp: 'desc' }
+        }
+      }
     });
 
     // Se estiver ativando e não houver um passo atual, dispara o robô agora mesmo
@@ -36,6 +44,23 @@ export async function POST(
       // Usamos um texto vazio para simular a entrada e disparar o fluxo inicial
       // O motor vai procurar o fluxo padrão/ativo e mandar o primeiro nó.
       await botEngine.processMessage(conversation.id, '', 'TESTE', conversation.contact.number + '@s.whatsapp.net');
+    }
+
+    // Notify via Socket
+    try {
+      await fetch('http://127.0.0.1:3005/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'conversation_updated',
+          data: {
+            conversationId: id,
+            conversation
+          }
+        })
+      });
+    } catch (e) {
+      console.error('[Socket] Failed to notify bot toggle:', e);
     }
 
     return NextResponse.json(conversation);

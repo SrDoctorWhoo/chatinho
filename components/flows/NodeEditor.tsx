@@ -45,12 +45,48 @@ export default function NodeEditor({
   if (!node) return null;
 
   const nodeTypes = [
-    { id: 'MESSAGE', label: 'Mensagem', icon: MessageSquare, color: 'blue' },
-    { id: 'MENU', label: 'Menu Texto', icon: List, color: 'purple' },
-    { id: 'LIST', label: 'Lista Wpp', icon: Layout, color: 'emerald' },
-    { id: 'WAIT_INPUT', label: 'Pedir Dado', icon: Type, color: 'amber' },
-    { id: 'AI_DIFY', label: 'IA & Webhook', icon: Bot, color: 'indigo' },
-    { id: 'TRANSFER', label: 'Humano', icon: User, color: 'orange' }
+    { 
+      id: 'MESSAGE', 
+      label: 'Mensagem', 
+      icon: MessageSquare, 
+      color: 'blue',
+      description: 'Envia uma mensagem de texto simples. Ideal para saudações e avisos.'
+    },
+    { 
+      id: 'MENU', 
+      label: 'Menu Texto', 
+      icon: List, 
+      color: 'purple',
+      description: 'Opções numeradas (1, 2, 3...). O cliente responde digitando o número ou a palavra-chave.'
+    },
+    { 
+      id: 'LIST', 
+      label: 'Lista Wpp', 
+      icon: Layout, 
+      color: 'emerald',
+      description: 'Menu interativo oficial do WhatsApp (Lista/Botão). Mais profissional e fácil de clicar.'
+    },
+    { 
+      id: 'WAIT_INPUT', 
+      label: 'Pedir Dado', 
+      icon: Type, 
+      color: 'amber',
+      description: 'Pausa o bot e aguarda o cliente enviar algo (CPF, Foto, Email) para salvar em uma variável.'
+    },
+    { 
+      id: 'AI_DIFY', 
+      label: 'IA & Webhook', 
+      icon: Bot, 
+      color: 'indigo',
+      description: 'Conecta com Inteligência Artificial (Dify) ou sistemas externos para respostas dinâmicas.'
+    },
+    { 
+      id: 'TRANSFER', 
+      label: 'Humano', 
+      icon: User, 
+      color: 'orange',
+      description: 'Transfere o chat para um atendente real e um setor específico.'
+    }
   ];
 
   const currentType = nodeTypes.find(t => t.id === node.type) || nodeTypes[0];
@@ -75,7 +111,10 @@ export default function NodeEditor({
                 {currentType.label}
               </h2>
             </div>
-            <p className="text-[10px] md:text-sm text-slate-500 font-medium italic truncate">ID: {node.id}</p>
+            <p className="text-[10px] md:text-sm text-slate-500 font-medium truncate">ID: {node.id}</p>
+            <p className="text-[10px] md:text-xs text-blue-500 dark:text-blue-400 font-bold uppercase tracking-widest mt-1">
+              {currentType.description}
+            </p>
           </div>
         </div>
         <button 
@@ -91,23 +130,25 @@ export default function NodeEditor({
           {/* Editor de Conteúdo Principal */}
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-[2.5rem] p-6 md:p-12 border border-slate-200/60 dark:border-slate-800/60 shadow-xl shadow-slate-200/20 dark:shadow-none space-y-6 md:space-y-10">
             
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  {node.type === 'TRANSFER' ? 'Mensagem de Transferência' : 'Conteúdo da Mensagem'}
-                </label>
-                <div className="flex items-center gap-1.5 text-slate-400">
-                  <HelpCircle size={12} />
-                  <span className="text-[10px] font-bold">Dica: Use {"{{nome}}"}</span>
+            {node.type !== 'AI_DIFY' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    {node.type === 'TRANSFER' ? 'Mensagem de Transferência' : 'Conteúdo da Mensagem'}
+                  </label>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <HelpCircle size={12} />
+                    <span className="text-[10px] font-bold">Dica: Use {"{{nome}}"}</span>
+                  </div>
                 </div>
+                <textarea
+                  className="w-full p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl text-sm min-h-[160px] focus:ring-4 focus:ring-blue-500/10 transition-all outline-none leading-relaxed font-medium"
+                  placeholder="Ex: Olá! Como posso te ajudar hoje?"
+                  value={node.content}
+                  onChange={(e) => onUpdate(node.id, { content: e.target.value })}
+                />
               </div>
-              <textarea
-                className="w-full p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl text-sm min-h-[160px] focus:ring-4 focus:ring-blue-500/10 transition-all outline-none leading-relaxed font-medium"
-                placeholder="Ex: Olá! Como posso te ajudar hoje?"
-                value={node.content}
-                onChange={(e) => onUpdate(node.id, { content: e.target.value })}
-              />
-            </div>
+            )}
 
             {/* Configurações Específicas por Tipo */}
             {node.type === 'AI_DIFY' && (
@@ -122,9 +163,15 @@ export default function NodeEditor({
                         onChange={(e) => onUpdate(node.id, { integrationId: e.target.value })}
                       >
                         <option value="">Nenhuma selecionada</option>
-                        {integrations.map((integ: any) => (
-                          <option key={integ.id} value={integ.id}>{integ.name} ({integ.type})</option>
-                        ))}
+                        <optgroup label="🌍 Configuração Global">
+                          <option value="GLOBAL_INTERNET">✨ Usar Chat Internet (Global)</option>
+                          <option value="GLOBAL_COMERCIAL">💼 Usar Chat Comercial (Global)</option>
+                        </optgroup>
+                        <optgroup label="🔌 Integrações Específicas">
+                          {integrations.map((integ: any) => (
+                            <option key={integ.id} value={integ.id}>{integ.name} ({integ.type})</option>
+                          ))}
+                        </optgroup>
                       </select>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                         <Globe size={16} />
@@ -178,6 +225,60 @@ export default function NodeEditor({
                     <User size={16} />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {node.type === 'LIST' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in zoom-in-95 duration-300">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Título da Lista (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Nossos Serviços"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-bold"
+                    value={node.title || ''}
+                    onChange={(e) => onUpdate(node.id, { title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Texto do Botão (Obrigatório)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Ver Opções"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-bold"
+                    value={node.buttonText || ''}
+                    onChange={(e) => onUpdate(node.id, { buttonText: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Rodapé (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Selecione uma opção para continuar"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-bold"
+                    value={node.footer || ''}
+                    onChange={(e) => onUpdate(node.id, { footer: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {node.type === 'LIST' && (
+              <div className="p-6 bg-amber-500/5 dark:bg-amber-500/10 rounded-[2rem] border border-amber-500/10 space-y-4 mb-6">
+                <div className="flex items-center gap-2 px-1">
+                  <Variable size={16} className="text-amber-500" />
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Salvar Escolha em uma Variável (Opcional)</label>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ex: setor_escolhido, opcao_suporte..."
+                  className="w-full p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-amber-500/10 transition-all font-bold"
+                  value={node.variableName || ''}
+                  onChange={(e) => onUpdate(node.id, { variableName: e.target.value })}
+                />
+                <p className="text-[9px] text-slate-500 italic px-1 font-medium">
+                   💡 Se preenchido, o valor da opção escolhida será salvo nesta variável.
+                </p>
               </div>
             )}
 
@@ -256,9 +357,15 @@ export default function NodeEditor({
                           >
                             <option value="">Encerrar fluxo</option>
                             <optgroup label="Neste Fluxo">
-                              {nodes.filter(n => n.id !== node.id).map(n => (
-                                <option key={n.id} value={n.id}>Ir para: {n.content?.substring(0, 15)}...</option>
-                              ))}
+                              {nodes.filter(n => n.id !== node.id).map(n => {
+                                  const stepIdx = nodes.findIndex(orig => orig.id === n.id) + 1;
+                                  const typeLabel = nodeTypes.find(t => t.id === n.type)?.label || 'Ação';
+                                  return (
+                                    <option key={n.id} value={n.id}>
+                                      #{stepIdx} [{typeLabel}] {n.content?.substring(0, 30)}...
+                                    </option>
+                                  );
+                              })}
                             </optgroup>
                             <optgroup label="Outro Fluxo">
                               {allFlows.map(f => (
@@ -318,6 +425,36 @@ export default function NodeEditor({
               <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 font-medium">
                 Você pode usar chaves entre chaves duplas {"{{variável}}"} no conteúdo da mensagem para exibir dados capturados anteriormente ou do contato.
               </p>
+              
+              <div className="mt-3 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 font-medium space-y-2">
+                <div>
+                  <strong className="text-slate-700 dark:text-slate-200">Variáveis Padrão:</strong>
+                  <ul className="list-disc pl-4 mt-1">
+                    <li>{"{{nome}}"} - Nome do contato</li>
+                    <li>{"{{telefone}}"} - Número do WhatsApp</li>
+                  </ul>
+                </div>
+                
+                {node.type === 'AI_DIFY' && (
+                  <>
+                    <div className="pt-2 border-t border-blue-500/10">
+                      <strong className="text-slate-700 dark:text-slate-200">Variáveis Enviadas para a IA:</strong>
+                      <ul className="list-disc pl-4 mt-1">
+                        <li>{"historico"} - Últimas 20 mensagens (embutido no JSON)</li>
+                        <li>{"is_first_interaction"} - Primeira mensagem (true/false)</li>
+                        <li>{"departamentos"} - Lista de departamentos e seus IDs reais para transferência</li>
+                      </ul>
+                    </div>
+                    <div className="pt-2 border-t border-blue-500/10">
+                      <strong className="text-slate-700 dark:text-slate-200">Ações da IA (Dify responde com as Tags):</strong>
+                      <ul className="list-disc pl-4 mt-1">
+                        <li><code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded text-[9px]">[TRANSFER]</code> - Fila Geral</li>
+                        <li><code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded text-[9px]">[TRANSFER_DEPT:id]</code> - Transfere p/ Depto</li>
+                      </ul>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

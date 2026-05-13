@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { 
   Smartphone, 
   Plus, 
@@ -15,11 +17,22 @@ import {
   Clock,
   ExternalLink,
   Loader2,
-  Database
+  Database,
+  Send
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function WhatsappPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    if ((session?.user as any)?.role === 'INTERNAL') {
+      router.replace('/conversations');
+    }
+  }, [session, status, router]);
+
   const [instances, setInstances] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +117,8 @@ export default function WhatsappPage() {
         payload.phoneNumberId = newPhoneNumberId;
         payload.wabaId = newWabaId;
         payload.number = newNumber;
+      } else if (newIntegration === 'TELEGRAM') {
+        payload.token = newToken;
       }
       const res = await fetch('/api/whatsapp/instances', {
         method: 'POST',
@@ -232,11 +247,11 @@ export default function WhatsappPage() {
               <Zap size={24} />
             </div>
             <h1 className="text-4xl font-black tracking-tighter text-white">
-              WhatsApp <span className="text-emerald-400">Hub</span>
+              Canais de <span className="text-emerald-400">Conexão</span>
             </h1>
           </div>
           <p className="text-lg text-slate-400 max-w-2xl font-medium leading-relaxed">
-            Gerencie múltiplas instâncias da Evolution API com sincronização em tempo real e controle total.
+            Gerencie múltiplas instâncias de WhatsApp e Telegram com sincronização em tempo real e controle total.
           </p>
         </div>
 
@@ -301,10 +316,10 @@ export default function WhatsappPage() {
                     <div className={cn(
                       "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500",
                       instance.status === 'CONNECTED' 
-                        ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" 
+                        ? (instance.integration === 'TELEGRAM' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20") 
                         : "bg-white/5 text-slate-500"
                     )}>
-                      <Smartphone size={32} strokeWidth={2.5} />
+                      {instance.integration === 'TELEGRAM' ? <Send size={32} strokeWidth={2.5} /> : <Smartphone size={32} strokeWidth={2.5} />}
                     </div>
 
                     <div className={cn(
@@ -317,7 +332,7 @@ export default function WhatsappPage() {
                     )}>
                       <div className={cn(
                         "w-2 h-2 rounded-full",
-                        instance.status === 'CONNECTED' ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : instance.status === 'QRCODE' ? "bg-orange-400" : "bg-red-400"
+                        instance.status === 'CONNECTED' ? (instance.integration === 'TELEGRAM' ? "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" : "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]") : instance.status === 'QRCODE' ? "bg-orange-400" : "bg-red-400"
                       )} />
                       {instance.status === 'CONNECTED' ? 'ONLINE' : instance.status === 'QRCODE' ? 'AGUARDANDO SCAN' : 'OFFLINE'}
                     </div>
@@ -344,14 +359,17 @@ export default function WhatsappPage() {
                       <div className="flex items-center gap-4">
                         {instance.number && (
                           <p className="text-emerald-400 font-bold text-sm tracking-tight">
-                            +{instance.number}
+                            {instance.integration === 'TELEGRAM' ? instance.number : `+${instance.number}`}
                           </p>
                         )}
                         <span className={cn(
                           "text-[9px] font-black px-2 py-0.5 rounded-md border",
-                          instance.integration === 'WHATSAPP-BUSINESS' ? "text-blue-400 border-blue-500/20 bg-blue-500/5" : "text-slate-500 border-white/5 bg-white/5"
+                          instance.integration === 'WHATSAPP-BUSINESS' ? "text-blue-400 border-blue-500/20 bg-blue-500/5" : 
+                          instance.integration === 'TELEGRAM' ? "text-sky-400 border-sky-500/20 bg-sky-500/5" :
+                          "text-slate-500 border-white/5 bg-white/5"
                         )}>
-                          {instance.integration === 'WHATSAPP-BUSINESS' ? 'OFICIAL (CLOUD)' : 'WEB (BAILEYS)'}
+                          {instance.integration === 'WHATSAPP-BUSINESS' ? 'OFICIAL (CLOUD)' : 
+                           instance.integration === 'TELEGRAM' ? 'TELEGRAM BOT' : 'WEB (BAILEYS)'}
                         </span>
                         <span className={cn(
                           "text-[9px] font-black px-2 py-0.5 rounded-md border",
@@ -397,7 +415,7 @@ export default function WhatsappPage() {
                       <Clock size={14} /> Conexão Estável
                     </span>
                   </div>
-                ) : instance.integration !== 'WHATSAPP-BUSINESS' && (
+                ) : (instance.integration !== 'WHATSAPP-BUSINESS' && instance.integration !== 'TELEGRAM') && (
                   <button 
                     onClick={() => handleConnect(instance)}
                     className="col-span-2 group/btn flex items-center justify-center gap-3 py-4.5 bg-white text-slate-950 font-black rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-white/5"
@@ -492,8 +510,50 @@ export default function WhatsappPage() {
                     >
                       <span className="text-[10px] font-black uppercase tracking-widest">Cloud API</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewIntegration('TELEGRAM')}
+                      className={cn(
+                        "py-3 px-4 rounded-xl border transition-all text-center",
+                        newIntegration === 'TELEGRAM'
+                          ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
+                          : "bg-white/5 border-white/5 text-slate-500 hover:border-white/10"
+                      )}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest">Telegram Bot</span>
+                    </button>
                   </div>
                 </div>
+
+                {/* Campos Telegram */}
+                {newIntegration === 'TELEGRAM' && (
+                  <div className="space-y-4 p-5 bg-sky-500/5 rounded-xl border border-sky-500/10">
+                    <h4 className="text-sky-400 font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
+                      <Send size={14} /> Configuração Telegram
+                    </h4>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                        Bot Token <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newToken}
+                        onChange={(e) => setNewToken(e.target.value)}
+                        className={cn(
+                          "block w-full px-4 py-3 bg-white/5 border rounded-lg focus:border-sky-500/50 outline-none transition-all font-bold text-xs text-white placeholder-slate-600",
+                          !newToken && "border-white/10",
+                          newToken && "border-sky-500/20"
+                        )}
+                        placeholder="Ex: 123456789:ABCdef..."
+                        disabled={isCreating}
+                      />
+                      <p className="text-[9px] text-slate-500 font-medium px-1">
+                        Obtenha seu token conversando com o @BotFather no Telegram.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Campos Cloud API */}
                 {newIntegration === 'WHATSAPP-BUSINESS' && (
@@ -560,7 +620,7 @@ export default function WhatsappPage() {
                 {/* Botão */}
                 <button 
                   onClick={handleCreateInstance}
-                  disabled={isCreating || !newInstanceName || (newIntegration === 'WHATSAPP-BUSINESS' && (!newToken || !newNumber || !newWabaId))}
+                  disabled={isCreating || !newInstanceName || (newIntegration === 'WHATSAPP-BUSINESS' && (!newToken || !newNumber || !newWabaId)) || (newIntegration === 'TELEGRAM' && !newToken)}
                   className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-slate-950 font-black rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-3"
                 >
                   {isCreating ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}

@@ -46,9 +46,12 @@ export default function NextStepSelector({
         >
           <option value="">{emptyLabel}</option>
           <optgroup label="Passos deste Fluxo">
-            {nodes.filter((n: any) => n.id !== currentNodeId).map((n: any, nIdx: number) => (
-              <option key={n.id} value={n.id}>Passo {nIdx + 1}: {n.content?.substring(0, 30) || '(Sem texto)'}...</option>
-            ))}
+            {nodes.filter((n: any) => n.id !== currentNodeId).map((n: any) => {
+              const stepIdx = nodes.findIndex((orig: any) => orig.id === n.id) + 1;
+              return (
+                <option key={n.id} value={n.id}>Passo {stepIdx}: {n.content?.substring(0, 30) || '(Sem texto)'}...</option>
+              );
+            })}
           </optgroup>
           <optgroup label="Acionar outro Fluxo">
             {allFlows.map((f: any) => (

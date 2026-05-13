@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -64,5 +64,23 @@ export async function GET(req: Request) {
     orderBy: { lastMessageAt: 'desc' }
   });
 
-  return NextResponse.json(conversations);
+  // Unificação por Contato: Mantém apenas a conversa mais recente/relevante de cada contato
+  const unifiedMap = new Map<string, any>();
+  
+  conversations.forEach(conv => {
+    const contactId = conv.contactId;
+    const existing = unifiedMap.get(contactId);
+    
+    if (!existing) {
+      unifiedMap.set(contactId, conv);
+    } else {
+      // Se a conversa atual não estiver fechada e a existente estiver, troca
+      if (conv.status !== 'CLOSED' && existing.status === 'CLOSED') {
+        unifiedMap.set(contactId, conv);
+      }
+      // Ou se ambas tiverem o mesmo status de "fechado/aberto", a primeira (mais recente por orderBy) já é a correta
+    }
+  });
+
+  return NextResponse.json(Array.from(unifiedMap.values()));
 }

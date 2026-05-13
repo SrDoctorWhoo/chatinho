@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
+import { resolveConnectedInstanceForConversation } from '@/lib/instanceResolver';
+import { telegramService } from '@/lib/telegram';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
@@ -141,43 +143,6 @@ async function convertAudio(
   }
 }
 
-async function resolveInstanceForConversation(conversation: {
-  departmentId: string | null;
-}) {
-  let instance = null;
-
-  if (conversation.departmentId) {
-    instance = await prisma.whatsappInstance.findFirst({
-      where: {
-        status: 'CONNECTED',
-        isActive: true,
-        departments: { some: { id: conversation.departmentId } }
-      }
-    });
-  }
-
-  if (!instance) {
-    instance = await prisma.whatsappInstance.findFirst({
-      where: {
-        status: 'CONNECTED',
-        isActive: true,
-        departments: { none: {} }
-      }
-    });
-  }
-
-  if (!instance) {
-    instance = await prisma.whatsappInstance.findFirst({
-      where: {
-        status: 'CONNECTED',
-        isActive: true
-      }
-    });
-  }
-
-  return instance;
-}
-
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -208,8 +173,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    const instance = await resolveInstanceForConversation({
-      departmentId: conversation.departmentId
+    const instance = await resolveConnectedInstanceForConversation({
+      departmentId: conversation.departmentId,
+      platform: conversation.platform === 'TELEGRAM' ? 'TELEGRAM' : 'WHATSAPP',
     });
 
     if (!instance) {
@@ -286,82 +252,95 @@ export async function POST(req: Request) {
     const fileName = `${Date.now()}-media.${extension}`;
     fs.writeFileSync(path.join(uploadDir, fileName), finalBuffer);
 
-    const instanceId = instance.instanceId;
-    const cleanNumber = conversation.contact.number.replace(/\D/g, '');
-    const targetNumber =
-      instance.integration === 'WHATSAPP-BUSINESS'
-        ? cleanNumber
-        : `${cleanNumber}@s.whatsapp.net`;
+    if (instance.integration === 'TELEGRAM') {
+      if (!instance.token) {
+        throw new Error('Token do Telegram nao configurado para esta instancia.');
+      }
 
-    const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
-    const base64Media = finalBuffer.toString('base64');
-    const payload: AudioPayload = {
-      number: targetNumber,
-    };
-
-    if (isAudio) {
-      payload.audio = base64Media;
-      payload.mimetype = finalMimeType;
-      payload.fileName = fileName;
-      payload.ptt = true;
+      await telegramService.sendMedia(instance.token, conversation.contact.number, {
+        buffer: finalBuffer,
+        fileName,
+        mimeType: finalMimeType,
+        caption: finalCaption || undefined,
+      });
     } else {
-      payload.mediatype = finalMimeType.includes('image')
-        ? 'image'
-        : finalMimeType.includes('video')
-        ? 'video'
-        : 'document';
-      payload.mimetype = finalMimeType;
-      payload.media = base64Media;
-      payload.fileName = fileName;
-      if (finalCaption) payload.caption = finalCaption;
-    }
+      const instanceId = instance.instanceId;
+      const cleanNumber = conversation.contact.number.replace(/\D/g, '');
+      const targetNumber =
+        instance.integration === 'WHATSAPP-BUSINESS'
+          ? cleanNumber
+          : `${cleanNumber}@s.whatsapp.net`;
 
-    const evolutionUrl = `${process.env.EVOLUTION_API_URL}/message/${endpoint}/${instanceId}`;
-    console.log(
-      `[Evolution] Sending ${isAudio ? 'voice note' : 'media'} via ${endpoint} using instance=${instance.instanceId} integration=${instance.integration} to ${targetNumber}`
-    );
-    console.log(`[Evolution] Request URL: ${evolutionUrl}`);
+      const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
+      const base64Media = finalBuffer.toString('base64');
+      const payload: AudioPayload = {
+        number: targetNumber,
+      };
 
-    const evolutionRes = await fetch(evolutionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: process.env.EVOLUTION_API_KEY || ''
-      },
-      body: JSON.stringify(payload)
-    });
+      if (isAudio) {
+        payload.audio = base64Media;
+        payload.mimetype = finalMimeType;
+        payload.fileName = fileName;
+        payload.ptt = true;
+      } else {
+        payload.mediatype = finalMimeType.includes('image')
+          ? 'image'
+          : finalMimeType.includes('video')
+          ? 'video'
+          : 'document';
+        payload.mimetype = finalMimeType;
+        payload.media = base64Media;
+        payload.fileName = fileName;
+        if (finalCaption) payload.caption = finalCaption;
+      }
 
-    const rawEvolutionResponse = await evolutionRes.text();
-    let evolutionData: unknown = rawEvolutionResponse;
-
-    try {
-      evolutionData = JSON.parse(rawEvolutionResponse);
-    } catch {
-      console.warn('[Evolution] Non-JSON response body:', rawEvolutionResponse);
-    }
-
-    console.log('[Evolution] Response status:', evolutionRes.status);
-    console.log('[Evolution] Response body:', typeof evolutionData === 'string' ? evolutionData : JSON.stringify(evolutionData, null, 2));
-
-    const looksLikeProviderError =
-      typeof evolutionData === 'object' &&
-      evolutionData !== null &&
-      (
-        ('error' in evolutionData && Boolean(evolutionData.error)) ||
-        ('status' in evolutionData && (evolutionData.status === false || evolutionData.status === 'error'))
+      const evolutionUrl = `${process.env.EVOLUTION_API_URL}/message/${endpoint}/${instanceId}`;
+      console.log(
+        `[Evolution] Sending ${isAudio ? 'voice note' : 'media'} via ${endpoint} using instance=${instance.instanceId} integration=${instance.integration} to ${targetNumber}`
       );
+      console.log(`[Evolution] Request URL: ${evolutionUrl}`);
 
-    if (!evolutionRes.ok || looksLikeProviderError) {
-      const providerMessage =
+      const evolutionRes = await fetch(evolutionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: process.env.EVOLUTION_API_KEY || ''
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const rawEvolutionResponse = await evolutionRes.text();
+      let evolutionData: unknown = rawEvolutionResponse;
+
+      try {
+        evolutionData = JSON.parse(rawEvolutionResponse);
+      } catch {
+        console.warn('[Evolution] Non-JSON response body:', rawEvolutionResponse);
+      }
+
+      console.log('[Evolution] Response status:', evolutionRes.status);
+      console.log('[Evolution] Response body:', typeof evolutionData === 'string' ? evolutionData : JSON.stringify(evolutionData, null, 2));
+
+      const looksLikeProviderError =
         typeof evolutionData === 'object' &&
         evolutionData !== null &&
-        'error' in evolutionData &&
-        typeof evolutionData.error === 'string'
-          ? evolutionData.error
-          : 'Failed to send media';
+        (
+          ('error' in evolutionData && Boolean(evolutionData.error)) ||
+          ('status' in evolutionData && (evolutionData.status === false || evolutionData.status === 'error'))
+        );
 
-      console.error('[Evolution Error]', typeof evolutionData === 'string' ? evolutionData : JSON.stringify(evolutionData, null, 2));
-      throw new Error(providerMessage);
+      if (!evolutionRes.ok || looksLikeProviderError) {
+        const providerMessage =
+          typeof evolutionData === 'object' &&
+          evolutionData !== null &&
+          'error' in evolutionData &&
+          typeof evolutionData.error === 'string'
+            ? evolutionData.error
+            : 'Failed to send media';
+
+        console.error('[Evolution Error]', typeof evolutionData === 'string' ? evolutionData : JSON.stringify(evolutionData, null, 2));
+        throw new Error(providerMessage);
+      }
     }
 
     const savedMessage = await prisma.message.create({

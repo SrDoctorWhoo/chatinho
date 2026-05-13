@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -9,7 +9,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { integrationId, message, variables } = body;
+    const { integrationId, message, variables: rawVariables } = body;
+    let variables = rawVariables || {};
 
     let integration: any;
 
@@ -43,6 +44,12 @@ export async function POST(req: Request) {
       return newStr;
     };
 
+    const depts = await prisma.department.findMany({ select: { id: true, name: true, description: true } });
+    const deptsText = depts.map(d => `ID: ${d.id} | Nome: ${d.name} ${d.description ? `| Descrição: ${d.description}` : ''}`).join('\n');
+    
+    // Fix: variables is already a 'let' object from line 13
+    variables.departamentos = deptsText;
+
     const processedMessage = replaceVars(message || '');
     let url = integration.baseUrl || '';
     const method = (integration.method || 'POST').toUpperCase();
@@ -59,7 +66,7 @@ export async function POST(req: Request) {
       options.body = JSON.stringify({
         inputs: variables || {},
         query: processedMessage,
-        response_mode: "blocking",
+        response_mode: "streaming",
         user: "admin-test"
       });
     } else if (integration.type === 'OPENAI') {
@@ -89,12 +96,31 @@ export async function POST(req: Request) {
     const endTime = Date.now();
     const duration = endTime - startTime;
 
-    const responseText = await response.text();
+    const contentType = response.headers.get('content-type') || '';
     let responseData: any;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
-      responseData = responseText;
+
+    if (contentType.includes('text/event-stream')) {
+      const text = await response.text();
+      const lines = text.split('\n');
+      let fullAnswer = '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const chunk = JSON.parse(line.substring(6));
+            if (chunk.event === 'message' || chunk.event === 'agent_message') {
+              fullAnswer += chunk.answer || '';
+            }
+          } catch (e) {}
+        }
+      }
+      responseData = { answer: fullAnswer, raw_stream: text.substring(0, 500) + '...' };
+    } else {
+      const responseText = await response.text();
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        responseData = responseText;
+      }
     }
 
     return NextResponse.json({
@@ -102,6 +128,7 @@ export async function POST(req: Request) {
       statusText: response.statusText,
       duration: `${duration}ms`,
       data: responseData,
+      conversation_id: responseData.conversation_id || null,
       url: url // Helpful for debugging GET requests
     });
 

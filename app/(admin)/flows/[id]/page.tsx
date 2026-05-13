@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import FlowHeader from '@/components/flows/FlowHeader';
 import FlowSidebar from '@/components/flows/FlowSidebar';
 import NodeEditor from '@/components/flows/NodeEditor';
+import FlowSettings from '@/components/flows/FlowSettings';
 
 export default function FlowEditorPage() {
   const { id } = useParams();
@@ -24,6 +25,7 @@ export default function FlowEditorPage() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [allFlows, setAllFlows] = useState<any[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const fetchFlow = useCallback(async () => {
     try {
@@ -142,6 +144,7 @@ export default function FlowEditorPage() {
           );
         }}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -153,6 +156,7 @@ export default function FlowEditorPage() {
             setSidebarOpen(false); // Fecha ao selecionar no mobile
           }}
           onAddNode={addNode}
+          onReorder={(newNodes) => setFlow({ ...flow, nodes: newNodes })}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
@@ -235,6 +239,13 @@ export default function FlowEditorPage() {
           </div>
         </main>
       </div>
+
+      <FlowSettings 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        flow={flow}
+        onUpdate={(data) => setFlow({ ...flow, ...data })}
+      />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { 
   Settings, 
   Layers, 
@@ -23,11 +25,24 @@ import {
   ShieldCheck,
   Activity,
   LogOut,
-  Smartphone
+  Smartphone,
+  MessageSquare,
+  MessageCircle,
+  Hash
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    if ((session?.user as any)?.role === 'INTERNAL') {
+      router.replace('/conversations');
+    }
+  }, [session, status, router]);
+
   const [activeTab, setActiveTab] = useState('general');
   const [departments, setDepartments] = useState<any[]>([]);
   const [integrations, setIntegrations] = useState<any[]>([]);
@@ -45,8 +60,13 @@ export default function SettingsPage() {
   const [globalSettings, setGlobalSettings] = useState({
     isBotEnabled: true,
     chatExpirationMinutes: 60,
-    systemName: 'Chatinho'
+    systemName: 'Chatinho',
+    internetIntegId: '',
+    comercialIntegId: '',
+    welcomeFlowId: ''
   });
+
+  const [flows, setFlows] = useState<any[]>([]);
 
   // Security State
   const [securityForm, setSecurityForm] = useState({
@@ -57,19 +77,62 @@ export default function SettingsPage() {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [securityLoading, setSecurityLoading] = useState(false);
 
-  // Mock Activity Logs
-  const [activityLogs] = useState([
-    { id: 1, action: 'LOGIN', description: 'Acesso realizado via Chrome/Windows', target: 'Painel Master', ip: '192.168.1.15', date: 'Hoje, 10:45', type: 'success' },
-    { id: 2, action: 'UPDATE', description: 'Configurações de Bot alteradas', target: 'Sistema', ip: '192.168.1.15', date: 'Hoje, 09:20', type: 'info' },
-    { id: 3, action: 'CREATE', description: 'Novo setor "Vendas" adicionado', target: 'Setores', ip: '187.12.44.10', date: 'Ontem, 16:30', type: 'success' },
-    { id: 4, action: 'DELETE', description: 'Atendente "Roberto" removido', target: 'Equipe', ip: '192.168.1.15', date: '07 Mai, 14:15', type: 'error' },
-  ]);
+  // Productivity / Canned Responses
+  const [cannedResponses, setCannedResponses] = useState<any[]>([]);
+  const [isAddingCanned, setIsAddingCanned] = useState(false);
+  const [newCanned, setNewCanned] = useState({ shortcut: '', content: '' });
+
+  // AI Usage Stats
+  const [aiStats, setAiStats] = useState<any>(null);
+
+  // Real Activity Logs
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDepartments();
     fetchGlobalSettings();
     fetchIntegrations();
+    fetchLogs();
+    fetchCannedResponses();
+    fetchAIUsage();
+    fetchFlows();
   }, []);
+
+  const fetchFlows = async () => {
+    try {
+      const res = await fetch('/api/flows');
+      const data = await res.json();
+      if (Array.isArray(data)) setFlows(data);
+    } catch (err) {}
+  };
+
+  const fetchAIUsage = async () => {
+    try {
+      const res = await fetch('/api/settings/ai-usage');
+      const data = await res.json();
+      if (!data.error) setAiStats(data.stats);
+    } catch (err) {}
+  };
+
+  const fetchCannedResponses = async () => {
+    try {
+      const res = await fetch('/api/settings/canned-responses');
+      const data = await res.json();
+      if (Array.isArray(data)) setCannedResponses(data);
+    } catch (err) {}
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch('/api/settings/logs');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setActivityLogs(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch logs:', err);
+    }
+  };
 
   const fetchGlobalSettings = async () => {
     try {
@@ -79,7 +142,10 @@ export default function SettingsPage() {
         setGlobalSettings({
           isBotEnabled: data.isBotEnabled,
           chatExpirationMinutes: data.chatExpirationMinutes || 60,
-          systemName: 'Chatinho'
+          systemName: 'Chatinho',
+          internetIntegId: data.internetIntegId || '',
+          comercialIntegId: data.comercialIntegId || '',
+          welcomeFlowId: data.welcomeFlowId || ''
         });
       }
     } catch (err) {
@@ -189,7 +255,7 @@ export default function SettingsPage() {
       if (res.ok) {
         setIsAddingInteg(false);
         setEditingIntegId(null);
-        setIntegForm({ name: '', type: 'DIFY', apiKey: '', baseUrl: '', isActive: true });
+        setIntegForm({ name: '', type: 'DIFY', method: 'POST', apiKey: '', baseUrl: '', isActive: true });
         setTestResult(null);
         fetchIntegrations();
       }
@@ -257,6 +323,7 @@ export default function SettingsPage() {
   const tabs = [
     { id: 'general', label: 'Geral', icon: Settings },
     { id: 'departments', label: 'Setores', icon: Layers },
+    { id: 'productivity', label: 'Produtividade', icon: Zap },
     { id: 'ai', label: 'Integrações & IA', icon: Sparkles },
     { id: 'security', label: 'Segurança', icon: Shield },
   ];
@@ -344,14 +411,59 @@ export default function SettingsPage() {
                   <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-3">
                     <Globe className="text-blue-500" size={24} /> Sistema
                   </h3>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Nome da Plataforma</label>
-                    <input
-                      type="text"
-                      value={globalSettings.systemName}
-                      onChange={(e) => setGlobalSettings({...globalSettings, systemName: e.target.value})}
-                      className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Nome da Plataforma</label>
+                      <input
+                        type="text"
+                        value={globalSettings.systemName}
+                        onChange={(e) => setGlobalSettings({...globalSettings, systemName: e.target.value})}
+                        className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Chat Internet (IA)</label>
+                      <select
+                        value={globalSettings.internetIntegId}
+                        onChange={(e) => setGlobalSettings({...globalSettings, internetIntegId: e.target.value})}
+                        className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        <option value="">Nenhuma Selecionada</option>
+                        {integrations.map(integ => (
+                          <option key={integ.id} value={integ.id}>{integ.name} ({integ.type})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Chat Comercial</label>
+                      <select
+                        value={globalSettings.comercialIntegId}
+                        onChange={(e) => setGlobalSettings({...globalSettings, comercialIntegId: e.target.value})}
+                        className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        <option value="">Nenhuma Selecionada</option>
+                        {integrations.map(integ => (
+                          <option key={integ.id} value={integ.id}>{integ.name} ({integ.type})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-4 font-black">Fluxo de Boas-vindas (Novo Contato)</label>
+                      <select
+                        value={globalSettings.welcomeFlowId}
+                        onChange={(e) => setGlobalSettings({...globalSettings, welcomeFlowId: e.target.value})}
+                        className="w-full px-6 py-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl text-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                      >
+                        <option value="">Seguir Regra de Gatilhos (Padrão)</option>
+                        {flows.map(flow => (
+                          <option key={flow.id} value={flow.id}>{flow.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-[9px] text-slate-500 ml-4">Se selecionado, este fluxo iniciará automaticamente no primeiro contato, ignorando palavras-chave.</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -397,8 +509,143 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === 'ai' && (
+          {activeTab === 'productivity' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+                    <Zap className="text-amber-500" size={28} /> Respostas Rápidas
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">Crie atalhos para agilizar o atendimento da equipe.</p>
+                </div>
+                <button 
+                  onClick={() => setIsAddingCanned(true)} 
+                  className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-slate-950 rounded-xl font-bold text-sm hover:scale-105 transition-all shadow-xl shadow-amber-500/20"
+                >
+                  <Plus size={20} /> Novo Atalho
+                </button>
+              </div>
+
+              {isAddingCanned && (
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSaving(true);
+                    try {
+                      const res = await fetch('/api/settings/canned-responses', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newCanned)
+                      });
+                      if (res.ok) {
+                        setIsAddingCanned(false);
+                        setNewCanned({ shortcut: '', content: '' });
+                        fetchCannedResponses();
+                      }
+                    } finally {
+                      setSaving(false);
+                    }
+                  }} 
+                  className="bg-white/5 border border-white/10 rounded-[2rem] p-8 space-y-6 animate-in zoom-in-95"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Atalho (sem /)</label>
+                      <div className="relative">
+                        <Hash className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
+                        <input 
+                          required 
+                          placeholder="ex: oi" 
+                          value={newCanned.shortcut} 
+                          onChange={(e) => setNewCanned({...newCanned, shortcut: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '')})} 
+                          className="w-full pl-14 pr-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-amber-500/20" 
+                        />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Conteúdo da Resposta</label>
+                      <input 
+                        required 
+                        placeholder="Escreva a resposta completa que será inserida..." 
+                        value={newCanned.content} 
+                        onChange={(e) => setNewCanned({...newCanned, content: e.target.value})} 
+                        className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-amber-500/20" 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+                    <button type="button" onClick={() => setIsAddingCanned(false)} className="px-6 py-3 text-slate-500 font-bold text-sm">Cancelar</button>
+                    <button type="submit" disabled={saving} className="px-8 py-3 bg-amber-500 text-slate-950 rounded-xl font-black text-sm transition-all shadow-lg shadow-amber-500/20">
+                      {saving ? 'Salvando...' : 'Salvar Atalho'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 gap-4">
+                {cannedResponses.map((item) => (
+                  <div key={item.id} className="group p-6 bg-white/[0.03] border border-white/5 rounded-3xl flex items-center justify-between hover:bg-white/[0.05] transition-all">
+                    <div className="flex items-center gap-6">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-black text-lg">
+                        /{item.shortcut}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-lg">/{item.shortcut}</h3>
+                        <p className="text-sm text-slate-500 mt-0.5 line-clamp-1">{item.content}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        if (!confirm('Excluir este atalho?')) return;
+                        await fetch('/api/settings/canned-responses', {
+                          method: 'DELETE',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: item.id })
+                        });
+                        fetchCannedResponses();
+                      }} 
+                      className="p-3 text-slate-600 hover:text-red-500 transition-all"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                ))}
+
+                {cannedResponses.length === 0 && !isAddingCanned && (
+                  <div className="py-20 flex flex-col items-center justify-center bg-white/[0.01] border border-dashed border-white/10 rounded-[3rem]">
+                    <MessageSquare size={48} className="text-slate-800 mb-4" />
+                    <p className="text-slate-500 font-bold">Nenhum atalho de resposta cadastrado.</p>
+                    <p className="text-xs text-slate-600 mt-2">Use atalhos para responder clientes em segundos.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500">
+              {/* Dashboard IA */}
+              {aiStats && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="p-6 bg-white/[0.03] border border-white/5 rounded-3xl">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total de Requisições</p>
+                    <p className="text-2xl font-black text-white">{aiStats.totalRequests}</p>
+                  </div>
+                  <div className="p-6 bg-white/[0.03] border border-white/5 rounded-3xl">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Latência Média</p>
+                    <p className="text-2xl font-black text-emerald-500">{aiStats.avgDuration}ms</p>
+                  </div>
+                  <div className="p-6 bg-white/[0.03] border border-white/5 rounded-3xl">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Transferências</p>
+                    <p className="text-2xl font-black text-blue-500">{aiStats.transfers}</p>
+                  </div>
+                  <div className="p-6 bg-white/[0.03] border border-white/5 rounded-3xl">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Taxa de Suporte</p>
+                    <p className="text-2xl font-black text-amber-500">{aiStats.transferRate}%</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
@@ -431,88 +678,65 @@ export default function SettingsPage() {
                       <select value={integForm.type} onChange={(e) => setIntegForm({...integForm, type: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20">
                         <option value="DIFY">Dify.ai</option>
                         <option value="OPENAI">OpenAI (ChatGPT)</option>
+                        <option value="ANTHROPIC">Anthropic (Claude)</option>
                         <option value="WEBHOOK">Custom Webhook</option>
                       </select>
                     </div>
+                  </div>
 
-                    {integForm.type === 'WEBHOOK' && (
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Método HTTP</label>
-                        <select value={integForm.method} onChange={(e) => setIntegForm({...integForm, method: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20">
-                          <option value="POST">POST (Recomendado)</option>
-                          <option value="GET">GET</option>
-                        </select>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">URL Base (API)</label>
-                      <input placeholder="https://api.dify.ai/v1" value={integForm.baseUrl || ''} onChange={(e) => setIntegForm({...integForm, baseUrl: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20" />
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Endpoint / URL Base</label>
+                      <input required placeholder="https://api.dify.ai/v1" value={integForm.baseUrl} onChange={(e) => setIntegForm({...integForm, baseUrl: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20 font-mono text-xs" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Chave API / Token</label>
-                      <input type="password" placeholder="app-xxxxxxxxxxxx" value={integForm.apiKey || ''} onChange={(e) => setIntegForm({...integForm, apiKey: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20" />
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">API Key / Token</label>
+                      <input required type="password" placeholder="app-..." value={integForm.apiKey} onChange={(e) => setIntegForm({...integForm, apiKey: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20 font-mono text-xs" />
                     </div>
                   </div>
-                  <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                    <button type="button" onClick={() => { setIsAddingInteg(false); setEditingIntegId(null); setTestResult(null); }} className="px-6 py-3 text-slate-500 font-bold text-sm">Cancelar</button>
-                    <button type="button" onClick={testIntegration} disabled={testing || !integForm.baseUrl} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold border border-white/10 transition-all disabled:opacity-50">
-                      {testing ? 'Testando...' : 'Testar Integração'}
-                    </button>
-                    <button type="submit" className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-blue-600/20">
-                      {editingIntegId ? 'Salvar Alterações' : 'Salvar Integração'}
-                    </button>
+
+                  <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                    <div className="flex gap-4">
+                      <button 
+                        type="button" 
+                        onClick={testIntegration}
+                        disabled={testing || !integForm.apiKey || !integForm.baseUrl}
+                        className="px-6 py-3 bg-white/5 text-white rounded-xl font-bold text-sm hover:bg-white/10 transition-all disabled:opacity-50"
+                      >
+                        {testing ? 'Testando...' : 'Testar Conexão'}
+                      </button>
+                    </div>
+                    <div className="flex gap-4">
+                      <button type="button" onClick={() => setIsAddingInteg(false)} className="px-6 py-3 text-slate-500 font-bold text-sm hover:text-slate-300">Cancelar</button>
+                      <button type="submit" className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black text-sm hover:scale-105 transition-all shadow-lg shadow-blue-600/20">
+                        {editingIntegId ? 'Salvar Alterações' : 'Salvar Integração'}
+                      </button>
+                    </div>
                   </div>
 
                   {testResult && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                      <div className={cn(
-                        "p-4 rounded-2xl border flex items-center gap-3",
-                        testResult.success ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-red-500/10 border-red-500/20 text-red-500"
-                      )}>
-                        <div className={cn("w-2 h-2 rounded-full", testResult.success ? "bg-emerald-500" : "bg-red-500")} />
-                        <span className="text-xs font-bold uppercase tracking-wider">{testResult.message}</span>
-                      </div>
-                      
+                    <div className={cn(
+                      "p-6 rounded-2xl border animate-in slide-in-from-top-4",
+                      testResult.success ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
+                    )}>
+                      <p className={cn("text-sm font-bold", testResult.success ? "text-emerald-400" : "text-red-400")}>
+                        {testResult.success ? '✅ Conexão bem-sucedida!' : '❌ Erro na conexão'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">{testResult.message}</p>
                       {testResult.data && (
-                        <div className="bg-slate-950 rounded-2xl border border-white/5 p-4 overflow-hidden">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Resposta da API:</p>
-                          <pre className="text-[10px] text-emerald-400 font-mono whitespace-pre-wrap break-all">
-                            {JSON.stringify(testResult.data, null, 2)}
-                          </pre>
-                        </div>
+                        <pre className="mt-4 p-4 bg-slate-950 rounded-xl text-[10px] text-slate-400 overflow-x-auto max-h-40">
+                          {JSON.stringify(testResult.data, null, 2)}
+                        </pre>
                       )}
                     </div>
                   )}
                 </form>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {integrations.map((integ) => (
-                  <div key={integ.id} className="p-6 bg-white/[0.03] border border-white/5 rounded-3xl flex flex-col gap-6 hover:border-blue-500/30 transition-all group">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-black">
-                          {integ.type === 'DIFY' ? 'D' : integ.type === 'OPENAI' ? 'O' : 'W'}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-white">{integ.name}</h3>
-                          <span className="text-[10px] font-black bg-white/5 px-2 py-0.5 rounded text-slate-500 uppercase tracking-widest">{integ.type}</span>
-                        </div>
-                      </div>
-                      <div className={cn("px-3 py-1 rounded-full text-[9px] font-black tracking-widest", integ.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
-                        {integ.isActive ? 'ATIVO' : 'INATIVO'}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">URL Base</p>
-                      <p className="text-xs text-slate-400 truncate">{integ.baseUrl || 'N/A'}</p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => deleteIntegration(integ.id)} className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-red-500 transition-all">
-                        <Trash2 size={14} /> Excluir
-                      </button>
+                  <div key={integ.id} className="group relative bg-white/[0.03] border border-white/5 rounded-[2.5rem] p-8 hover:bg-white/[0.05] transition-all overflow-hidden">
+                    <div className="absolute top-0 right-0 p-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
                       <button 
                         onClick={() => {
                           setIntegForm({
@@ -524,10 +748,60 @@ export default function SettingsPage() {
                             isActive: integ.isActive
                           });
                           setEditingIntegId(integ.id);
-                          setTestResult(null);
                           setIsAddingInteg(true);
+                          setTestResult(null);
                         }}
-                        className="flex items-center gap-2 text-xs font-bold text-blue-500 hover:scale-105 transition-all"
+                        className="p-3 bg-white/10 text-white rounded-xl hover:bg-blue-500 transition-all"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => deleteIntegration(integ.id)}
+                        className="p-3 bg-white/10 text-white rounded-xl hover:bg-red-500 transition-all"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-all duration-500">
+                        {integ.type === 'DIFY' ? <Sparkles size={32} /> : <Cpu size={32} />}
+                      </div>
+                      
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-xl font-bold text-white leading-tight">{integ.name}</h3>
+                          {integ.isActive ? (
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-slate-600" />
+                          )}
+                        </div>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{integ.type}</p>
+                      </div>
+
+                      <div className="pt-4 border-t border-white/5 space-y-4">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-slate-600 uppercase tracking-widest">Base URL</span>
+                          <span className="text-slate-400 font-mono truncate max-w-[120px]">{integ.baseUrl}</span>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          setIntegForm({
+                            name: integ.name,
+                            type: integ.type,
+                            method: integ.method || 'POST',
+                            apiKey: integ.apiKey || '',
+                            baseUrl: integ.baseUrl || '',
+                            isActive: integ.isActive
+                          });
+                          setEditingIntegId(integ.id);
+                          setIsAddingInteg(true);
+                          setTestResult(null);
+                        }}
+                        className="w-full py-3 bg-white/5 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all flex items-center justify-center gap-2"
                       >
                         Configurar <ChevronRight size={14} />
                       </button>
@@ -710,20 +984,38 @@ export default function SettingsPage() {
                             log.type === 'success' ? "bg-emerald-500/10 text-emerald-500" :
                             log.type === 'error' ? "bg-red-500/10 text-red-500" : "bg-blue-500/10 text-blue-500"
                           )}>
-                            {log.action.substring(0, 3)}
+                            {(log.action || 'LOG').substring(0, 3)}
                           </div>
                           <div>
                             <p className="text-sm font-bold text-slate-200">{log.description}</p>
                             <div className="flex items-center gap-3 mt-1">
-                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{log.date}</span>
-                              <span className="text-[10px] font-medium text-slate-700">•</span>
-                              <span className="text-[10px] font-mono text-slate-600">{log.ip}</span>
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                                {new Date(log.createdAt).toLocaleString('pt-BR')}
+                              </span>
+                              {log.target && (
+                                <>
+                                  <span className="text-[10px] font-medium text-slate-700">•</span>
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{log.target}</span>
+                                </>
+                              )}
+                              {log.ip && (
+                                <>
+                                  <span className="text-[10px] font-medium text-slate-700">•</span>
+                                  <span className="text-[10px] font-mono text-slate-600">{log.ip}</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
                         <ChevronRight size={16} className="text-slate-800 group-hover:text-slate-400 transition-all" />
                       </div>
                     ))}
+
+                    {activityLogs.length === 0 && (
+                      <div className="py-12 text-center">
+                        <p className="text-slate-500 font-bold text-sm">Nenhum log registrado ainda.</p>
+                      </div>
+                    )}
 
                     <button className="w-full py-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] hover:text-white transition-all">
                       Ver histórico completo

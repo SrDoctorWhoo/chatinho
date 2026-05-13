@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, Mic, X, Image as ImageIcon } from 'lucide-react';
+import { Send, Paperclip, Smile, Mic, X, Image as ImageIcon, FileText, Bot } from 'lucide-react';
 import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface MessageInputProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, type?: 'chat' | 'internal') => void;
   onSendMedia?: (file: File, caption?: string) => void;
   disabled?: boolean;
 }
@@ -22,8 +22,23 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [isInternal, setIsInternal] = useState(false);
+  const [shortcuts, setShortcuts] = useState<any[]>([]);
+  const [filteredShortcuts, setFilteredShortcuts] = useState<any[]>([]);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/canned-responses')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setShortcuts(data);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -99,6 +114,24 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
     }
   };
 
+  const handleTextChange = (val: string) => {
+    setText(val);
+    if (val.startsWith('/') && !isInternal) {
+      const query = val.slice(1).toLowerCase();
+      const filtered = shortcuts.filter(s => s.shortcut.includes(query));
+      setFilteredShortcuts(filtered);
+      setShowShortcuts(filtered.length > 0);
+      setSelectedIndex(0);
+    } else {
+      setShowShortcuts(false);
+    }
+  };
+
+  const handleSelectShortcut = (s: any) => {
+    setText(s.content);
+    setShowShortcuts(false);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (disabled) return;
@@ -108,8 +141,9 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
       setSelectedFile(null);
       setText('');
     } else if (text.trim()) {
-      onSend(text);
+      onSend(text, isInternal ? 'internal' : 'chat');
       setText('');
+      if (isInternal) setIsInternal(false);
     }
   };
 
@@ -167,11 +201,55 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
           >
             <Paperclip size={22} className="group-active:scale-90 transition-transform" />
           </button>
+
+          <div className="w-px h-6 bg-white/10 mx-1" />
+
+          <button 
+            type="button" 
+            onClick={() => setIsInternal(!isInternal)}
+            className={cn(
+              "p-2.5 rounded-xl transition-all group flex items-center gap-2",
+              isInternal ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20" : "text-slate-400 hover:text-white hover:bg-white/5"
+            )}
+            title={isInternal ? "Modo: Nota Interna (Oculto p/ Cliente)" : "Modo: Mensagem Direta"}
+          >
+            <FileText size={22} className="group-active:scale-90 transition-transform" />
+            {isInternal && <span className="text-[10px] font-black uppercase tracking-tighter pr-1">Nota</span>}
+          </button>
         </div>
         
         {/* Input Area */}
         <div className="flex-1 relative group">
           <AnimatePresence>
+            {showShortcuts && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute bottom-full left-0 mb-4 w-full bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+              >
+                <div className="p-2 bg-white/5 border-b border-white/5">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-2">Respostas Rápidas</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                  {filteredShortcuts.map((s, idx) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => handleSelectShortcut(s)}
+                      className={cn(
+                        "w-full text-left px-4 py-3 flex flex-col gap-0.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none",
+                        idx === selectedIndex ? "bg-white/5" : ""
+                      )}
+                    >
+                      <span className="text-xs font-black text-emerald-500 uppercase tracking-tighter">/{s.shortcut}</span>
+                      <p className="text-[11px] text-slate-400 line-clamp-1">{s.content}</p>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
             {(selectedFile || isRecording) && (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
@@ -216,19 +294,41 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
               rows={1}
               value={text}
               onChange={(e) => {
-                setText(e.target.value);
+                handleTextChange(e.target.value);
                 e.target.style.height = 'auto';
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (showShortcuts) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedIndex(prev => (prev + 1) % filteredShortcuts.length);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedIndex(prev => (prev - 1 + filteredShortcuts.length) % filteredShortcuts.length);
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSelectShortcut(filteredShortcuts[selectedIndex]);
+                  } else if (e.key === 'Escape') {
+                    setShowShortcuts(false);
+                  }
+                } else if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit(e);
                 }
               }}
               disabled={disabled || isRecording}
-              className="w-full pl-6 pr-14 py-4 bg-white/[0.03] backdrop-blur-2xl border border-white/5 rounded-3xl text-white text-[15px] focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 outline-none disabled:opacity-50 placeholder-slate-600 transition-all resize-none shadow-2xl"
-              placeholder={selectedFile ? "Adicione uma legenda..." : isRecording ? "Gravando áudio..." : "Escreva sua mensagem aqui..."}
+              className={cn(
+                "w-full pl-6 pr-14 py-4 bg-white/[0.03] backdrop-blur-2xl border rounded-3xl text-[15px] outline-none disabled:opacity-50 placeholder-slate-600 transition-all resize-none shadow-2xl",
+                isInternal 
+                  ? "border-amber-500/30 focus:ring-2 focus:ring-amber-500/20 text-amber-100" 
+                  : "border-white/5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 text-white"
+              )}
+              placeholder={
+                isInternal 
+                  ? "Escreva uma nota interna (oculta para o cliente)..." 
+                  : selectedFile ? "Adicione uma legenda..." : isRecording ? "Gravando áudio..." : "Escreva sua mensagem aqui (use / para atalhos)..."
+              }
               style={{ minHeight: '56px' }}
             />
             
@@ -242,7 +342,7 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
                 className={cn(
                   "p-2.5 rounded-2xl transition-all duration-300 shadow-xl",
                   text.trim() || selectedFile || isRecording
-                    ? "bg-emerald-500 text-slate-950 shadow-emerald-500/20"
+                    ? (isInternal ? "bg-amber-500 text-slate-950 shadow-amber-500/20" : "bg-emerald-500 text-slate-950 shadow-emerald-500/20")
                     : "bg-white/5 text-slate-600 cursor-not-allowed"
                 )}
               >

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(
   req: Request,
@@ -14,17 +14,65 @@ export async function POST(
   const { departmentId, userId } = await req.json();
 
   try {
-    const conversation = await prisma.conversation.update({
+    const targetDept = departmentId ? await prisma.department.findUnique({ where: { id: departmentId } }) : null;
+    const targetUser = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
+    const currentUserName = session.user.name || 'Sistema';
+
+    const validUserId = targetUser ? targetUser.id : null;
+
+    const updatedConversation = await prisma.conversation.update({
       where: { id },
       data: {
         departmentId: departmentId || undefined,
-        assignedToId: userId || null,
-        status: userId ? 'ACTIVE' : 'QUEUED', // Se transferiu para um usuário, fica Ativo. Se só pro setor, vai pra Fila.
-        isBotActive: false // Garante que o bot não interfira após a transferência manual
+        assignedToId: validUserId,
+        status: validUserId ? 'ACTIVE' : 'QUEUED',
+        isBotActive: false
+      },
+      include: { 
+        contact: true, 
+        department: true,
+        assignedTo: { select: { id: true, name: true } },
+        messages: {
+          take: 1,
+          orderBy: { timestamp: 'desc' }
+        }
       }
     });
 
-    return NextResponse.json(conversation);
+    let systemContent = `🔄 ${currentUserName} transferiu para `;
+    if (targetUser) systemContent += `o atendente **${targetUser.name}**`;
+    else if (targetDept) systemContent += `o setor **${targetDept.name}**`;
+    else systemContent += `a fila geral`;
+
+    const systemMessage = await prisma.message.create({
+      data: {
+        conversationId: id,
+        body: systemContent,
+        fromMe: true,
+        type: 'system'
+      },
+      include: { conversation: { include: { contact: true, department: true } } }
+    });
+
+    // Notify socket
+    try {
+      await fetch('http://127.0.0.1:3005/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'new_message',
+          data: {
+            message: systemMessage,
+            conversationId: id,
+            conversation: updatedConversation
+          }
+        })
+      });
+    } catch (err) {
+      console.error('Failed to notify transfer socket:', err);
+    }
+
+    return NextResponse.json(updatedConversation);
   } catch (error) {
     console.error('Error transferring conversation:', error);
     return NextResponse.json({ error: 'Failed to transfer' }, { status: 500 });

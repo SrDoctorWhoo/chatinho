@@ -1,7 +1,9 @@
-import { prisma } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 async function main() {
+  const { prisma } = await import('../lib/prisma');
   console.log('--- SEED SQL SERVER (via lib/prisma) ---');
   const hashedPassword = await bcrypt.hash('admin123', 10);
   
@@ -29,7 +31,4 @@ main()
   .catch((e) => {
     console.error(e);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });

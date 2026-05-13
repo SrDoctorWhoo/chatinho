@@ -1,6 +1,39 @@
 import { prisma } from './prisma';
 import { whatsappService } from './whatsapp';
 
+const broadcastMessage = async (messageId: string) => {
+  try {
+    const enrichedMessage = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        conversation: {
+          include: {
+            contact: true,
+            department: true,
+            assignedTo: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+    if (enrichedMessage) {
+      await fetch(process.env.SOCKET_URL || 'http://127.0.0.1:3005/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'new_message',
+          data: {
+            message: enrichedMessage,
+            conversationId: enrichedMessage.conversationId,
+            conversation: enrichedMessage.conversation
+          }
+        })
+      });
+    }
+  } catch (err) {
+    console.error('[BotEngine] Erro ao notificar socket:', err);
+  }
+};
+
 export const botEngine = {
   async processMessage(conversationId: string, text: string, instanceName: string, remoteJid: string) {
     try {
@@ -30,6 +63,7 @@ export const botEngine = {
           isActive: true,
           OR: [
             { instances: { some: { instanceId: instanceName } } },
+            { isDefault: true },
             { instances: { none: {} } }
           ]
         },
@@ -47,13 +81,15 @@ export const botEngine = {
         console.log(`[BotEngine] ✅ Gatilho detectado ("${normalizedInput}"). Iniciando/Reiniciando fluxo: ${targetFlow.name}`);
         const firstNode = targetFlow.nodes[0];
         
+        const { generateProtocol } = await import('./protocol');
         await prisma.conversation.update({
           where: { id: conversationId },
           data: {
             currentFlowId: targetFlow.id,
             currentStepId: firstNode.id,
             status: 'BOT',
-            isBotActive: true
+            isBotActive: true,
+            protocol: conversation.protocol || generateProtocol()
           }
         });
 
@@ -61,23 +97,34 @@ export const botEngine = {
       }
 
       if (!currentFlowId) {
-        let defaultFlow = activeFlows.find(f => f.isDefault) || activeFlows.find(f => !f.triggerKeywords || f.triggerKeywords.trim() === '');
+        const settings = await prisma.systemSettings.findUnique({ where: { id: 'global' } });
+        let defaultFlow = null;
+
+        if (settings?.welcomeFlowId) {
+          defaultFlow = activeFlows.find(f => f.id === settings.welcomeFlowId);
+        }
+
+        if (!defaultFlow) {
+          defaultFlow = activeFlows.find(f => f.isDefault) || activeFlows.find(f => !f.triggerKeywords || f.triggerKeywords.trim() === '');
+        }
 
         if (!defaultFlow || !defaultFlow.nodes || defaultFlow.nodes.length === 0) {
           console.log('[BotEngine] Nenhum fluxo correspondente ou padrão encontrado.');
           return;
         }
 
-        console.log(`[BotEngine] ✅ Usando fluxo padrão: ${defaultFlow.name}`);
+        console.log(`[BotEngine] ✅ Usando fluxo (Boas-vindas/Padrão): ${defaultFlow.name}`);
         const firstNode = defaultFlow.nodes[0];
         
+        const { generateProtocol } = await import('./protocol');
         await prisma.conversation.update({
           where: { id: conversationId },
           data: {
             currentFlowId: defaultFlow.id,
             currentStepId: firstNode.id,
             status: 'BOT',
-            isBotActive: true
+            isBotActive: true,
+            protocol: conversation.protocol || generateProtocol()
           }
         });
 
@@ -102,6 +149,7 @@ export const botEngine = {
         const normalizedText = (text || '').trim().toLowerCase();
         
         const matchedOption = options.find(opt => 
+          opt.id === text ||
           opt.keyword.trim().toLowerCase() === normalizedText ||
           opt.label.trim().toLowerCase() === normalizedText
         );
@@ -117,6 +165,17 @@ export const botEngine = {
           });
 
           if (nextNode) {
+            // Se o nó atual tiver um variableName, salva a escolha do usuário
+            if (currentNode.variableName) {
+              let vars: Record<string, any> = {};
+              try { vars = JSON.parse(conversation.variables || '{}'); } catch (e) {}
+              vars[currentNode.variableName] = matchedOption.label || matchedOption.keyword;
+              await prisma.conversation.update({
+                where: { id: conversation.id },
+                data: { variables: JSON.stringify(vars) }
+              });
+            }
+
             await prisma.conversation.update({
               where: { id: conversation.id },
               data: { currentStepId: nextNode.id }
@@ -131,13 +190,14 @@ export const botEngine = {
         await this.executeNode(currentNode, conversation.id, instanceName, remoteJid);
       } else if (currentNode.type === 'WAIT_INPUT') {
         const variableName = currentNode.variableName || 'input';
-        let variables = {};
+        let variables: Record<string, any> = {};
         try {
           variables = JSON.parse(conversation.variables || '{}');
         } catch (e) {}
 
-        variables[variableName] = text;
-        console.log(`[BotEngine] 📥 Variável capturada: ${variableName} = ${text}`);
+        const valueToSave = text || "[Mídia/Arquivo]";
+        variables[variableName] = valueToSave;
+        console.log(`[BotEngine] 📥 Variável capturada: ${variableName} = ${valueToSave}`);
 
         // Update in memory for immediate use in executeNode
         const updatedVariablesStr = JSON.stringify(variables);
@@ -167,7 +227,7 @@ export const botEngine = {
     }
   },
 
-  async executeNode(node: any, conversationId: string, instanceName: string, remoteJid: string) {
+  async executeNode(node: any, conversationId: string, instanceName: string, remoteJid: string): Promise<void> {
     if (!node) return;
 
     if (node.type === 'MESSAGE' || node.type === 'MENU' || node.type === 'LIST' || node.type === 'AI_DIFY' || node.type === 'WAIT_INPUT') {
@@ -175,6 +235,8 @@ export const botEngine = {
         where: { id: conversationId },
         include: { contact: true }
       });
+
+      if (!conversation) return;
 
       let variables: any = {};
       try {
@@ -198,13 +260,24 @@ export const botEngine = {
 
       if (node.type === 'AI_DIFY') {
         try {
-          if (!node.integrationId) {
-            await whatsappService.sendMessage(instanceName, remoteJid, "⚠️ Erro: Nenhuma integração configurada para este passo.");
+          let integrationId = node.integrationId;
+
+          if (integrationId === 'GLOBAL_INTERNET' || integrationId === 'GLOBAL_COMERCIAL') {
+            const settings = await prisma.systemSettings.findUnique({ where: { id: 'global' } });
+            if (integrationId === 'GLOBAL_INTERNET') {
+              integrationId = settings?.internetIntegId || null;
+            } else {
+              integrationId = settings?.comercialIntegId || null;
+            }
+          }
+
+          if (!integrationId) {
+            await whatsappService.sendMessage(instanceName, remoteJid, "⚠️ Erro: Nenhuma integração configurada ou selecionada.");
             return;
           }
 
           const integration = await prisma.externalIntegration.findUnique({
-            where: { id: node.integrationId }
+            where: { id: integrationId }
           });
 
           if (!integration) {
@@ -221,7 +294,25 @@ export const botEngine = {
           const contactName = variables.nome;
           const contactNumber = variables.telefone;
           
-          let url = integration.baseUrl;
+          const historyMsgs = await prisma.message.findMany({
+            where: { conversationId },
+            orderBy: { timestamp: 'asc' },
+            take: 20
+          });
+          const historyText = historyMsgs.map((m: any) => `${m.fromMe ? 'Bot' : 'User'}: ${m.body}`).join('\n');
+          variables.historico = historyText;
+          variables.history = historyText;
+          variables.is_first_interaction = historyMsgs.length <= 1 ? 'true' : 'false';
+          
+          const depts = await prisma.department.findMany({ select: { id: true, name: true, description: true } });
+          const deptsText = depts.map(d => `ID: ${d.id} | Nome: ${d.name} ${d.description ? `| Descrição: ${d.description}` : ''}`).join('\n');
+          variables.departamentos = deptsText;
+          
+          const url = integration.baseUrl;
+          if (!url) {
+            await whatsappService.sendMessage(instanceName, remoteJid, "⚠️ Erro: URL da integração não configurada.");
+            return;
+          }
           const method = (integration.method || 'POST').toUpperCase();
           const options: RequestInit = {
             method,
@@ -231,12 +322,14 @@ export const botEngine = {
             }
           };
 
+          let finalUrl = url;
           if (integration.type === 'DIFY') {
             options.body = JSON.stringify({
               inputs: variables,
               query: messageText,
-              response_mode: "blocking",
-              user: contactNumber
+              response_mode: "streaming",
+              user: contactNumber,
+              conversation_id: conversation?.difyConversationId || undefined
             });
           } else if (integration.type === 'OPENAI') {
             options.body = JSON.stringify({
@@ -251,7 +344,7 @@ export const botEngine = {
                 contactNumber,
                 ...variables
               });
-              url = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`;
+              finalUrl = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`;
             } else {
               options.body = JSON.stringify({
                 message: messageText,
@@ -263,29 +356,147 @@ export const botEngine = {
             }
           }
 
-          const response = await fetch(url, options);
-          const responseText = await response.text();
+          const startTime = Date.now();
+          const response = await fetch(finalUrl, options);
+          const duration = Date.now() - startTime;
+          const contentType = response.headers.get('content-type') || '';
+          
+          let responseText = '';
+          let difyConvId = '';
 
-          if (response.ok) {
-            let answer = "";
-            try {
-              const data = JSON.parse(responseText);
-              answer = data.answer || data.response || data.output || data.text || data.result || "";
-              if (!answer && data.event === 'message') answer = data.answer;
-            } catch (e) {
-              answer = responseText;
+          if (contentType.includes('text/event-stream')) {
+            const text = await response.text();
+            const lines = text.split('\n');
+            let fullAnswer = '';
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const chunk = JSON.parse(line.substring(6));
+                  if (chunk.conversation_id) difyConvId = chunk.conversation_id;
+                  if (chunk.event === 'message' || chunk.event === 'agent_message') {
+                    fullAnswer += chunk.answer || '';
+                  }
+                } catch (e) {}
+              }
             }
+            responseText = JSON.stringify({ answer: fullAnswer, conversation_id: difyConvId });
+          } else {
+            responseText = await response.text();
+          }
 
-            if (answer) {
-              const finalAnswer = replaceVars(answer);
-              await whatsappService.sendMessage(instanceName, remoteJid, finalAnswer);
-              await prisma.message.create({
-                data: { conversationId, body: finalAnswer, fromMe: true, type: 'chat' }
-              });
+            if (response.ok) {
+              let answer = "";
+              let newDifyConvId = "";
+              try {
+                const data = JSON.parse(responseText);
+                answer = data.answer || data.response || data.output || data.text || data.result || "";
+                newDifyConvId = data.conversation_id || "";
+                if (!answer && data.event === 'message') answer = data.answer;
+              } catch (e) {
+                answer = responseText;
+              }
+
+              // Salvar o conversation_id do Dify para manter o contexto
+              if (newDifyConvId && newDifyConvId !== conversation.difyConversationId) {
+                try {
+                  await prisma.conversation.update({
+                    where: { id: conversationId },
+                    data: { difyConversationId: newDifyConvId }
+                  });
+                  console.log(`[BotEngine] 🔗 Dify Conversation ID vinculado: ${newDifyConvId}`);
+                } catch (e) {
+                  console.error('[BotEngine] Erro ao salvar Dify Conv ID:', e);
+                }
+              }
+
+              if (answer) {
+              // Extrair Resumo da IA se existir
+              const summaryMatch = answer.match(/\[SUMMARY:(.*?)\]/i);
+              let aiSummary = null;
+              if (summaryMatch) {
+                aiSummary = summaryMatch[1].trim();
+                answer = answer.replace(/\[SUMMARY:.*?\]/gi, '').trim();
+              }
+
+              let finalAnswer = replaceVars(answer);
+              let shouldTransfer = false;
+              let transferDeptId = null;
+
+              const transferMatch = finalAnswer.match(/\[TRANSFER(?:_DEPT:([a-zA-Z0-9_-]+))?\]/i);
+              if (transferMatch) {
+                shouldTransfer = true;
+                transferDeptId = transferMatch[1] || null;
+                finalAnswer = finalAnswer.replace(/\[TRANSFER(?:_DEPT:[a-zA-Z0-9_-]+)?\]/gi, '').trim();
+              }
+
+              // Registrar uso da IA
+              try {
+                await prisma.aIUsage.create({
+                  data: {
+                    conversationId,
+                    integrationId: integration.id,
+                    action: shouldTransfer ? 'TRANSFER' : 'RESPONSE',
+                    duration: duration
+                  }
+                });
+              } catch (e) {
+                console.error('[BotEngine] Erro ao registrar uso da IA:', e);
+              }
+
+              // Se houver resumo, salvar na conversa e criar nota interna
+              if (aiSummary) {
+                try {
+                  await prisma.conversation.update({
+                    where: { id: conversationId },
+                    data: { aiSummary }
+                  });
+
+                  const newInternalMsg = await prisma.message.create({
+                    data: {
+                      conversationId,
+                      body: `📝 RESUMO DA IA: ${aiSummary}`,
+                      fromMe: true,
+                      type: 'internal'
+                    }
+                  });
+                  await broadcastMessage(newInternalMsg.id);
+                } catch (e) {
+                  console.error('[BotEngine] Erro ao salvar resumo:', e);
+                }
+              }
+
+              if (finalAnswer) {
+                await whatsappService.sendMessage(instanceName, remoteJid, finalAnswer);
+                const newMsg = await prisma.message.create({
+                  data: { conversationId, body: finalAnswer, fromMe: true, type: 'chat' }
+                });
+                await broadcastMessage(newMsg.id);
+              }
+
+              if (shouldTransfer) {
+                await prisma.conversation.update({
+                  where: { id: conversationId },
+                  data: { 
+                    isBotActive: false,
+                    status: 'QUEUED',
+                    departmentId: transferDeptId || null,
+                    currentFlowId: null,
+                    currentStepId: null,
+                    lastMessageAt: new Date()
+                  }
+                });
+                return;
+              }
             }
           } else {
-            let errorMsg = "❌ Erro na integração.";
-            if (response.status === 404) errorMsg = "❌ Erro 404 na IA.";
+            let errorMsg = `❌ Erro na integração (${response.status}).`;
+            try {
+               const errData = JSON.parse(responseText);
+               errorMsg += ` Motivo: ${errData.message || errData.code || responseText.substring(0, 50)}`;
+            } catch(e) {
+               errorMsg += ` Motivo: ${responseText.substring(0, 50)}`;
+            }
+            console.error('BotEngine Integration Error:', response.status, responseText);
             await whatsappService.sendMessage(instanceName, remoteJid, errorMsg);
           }
         } catch (err) {
@@ -299,19 +510,33 @@ export const botEngine = {
         if (node.type === 'LIST' && node.options && node.options.length > 0) {
           try {
             await whatsappService.sendListMessage(instanceName, remoteJid, {
-              title: "Opções",
+              title: node.title || "Opções",
               description: finalContent,
-              buttonText: "Ver Opções",
-              footer: "Escolha uma opção",
+              buttonText: node.buttonText || "Ver Opções",
+              footer: node.footer || "Escolha uma opção",
               sections: [{
                 title: "Menu",
                 rows: node.options.map((opt: any) => ({
-                  title: opt.label,
-                  rowId: opt.keyword
+                  title: opt.label || "Opção",
+                  description: "",
+                  rowId: opt.id
                 }))
               }]
             });
-          } catch (err) {
+          } catch (err: any) {
+            console.error('[Evolution] Erro ao enviar lista:', err);
+            // Registrar log de erro
+            try {
+              const { createAuditLog } = await import('@/lib/audit');
+              const errorDetail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+              await createAuditLog({
+                action: 'LOG',
+                description: `Falha ao enviar Lista Wpp: ${errorDetail}`,
+                target: 'Sistema',
+                type: 'error'
+              });
+            } catch (e) {}
+            
             const optionsText = node.options.map((opt: any) => `*${opt.keyword}* - ${opt.label}`).join('\n');
             await whatsappService.sendMessage(instanceName, remoteJid, `${finalContent}\n\n${optionsText}`);
           }
@@ -322,7 +547,7 @@ export const botEngine = {
           await whatsappService.sendMessage(instanceName, remoteJid, finalContent);
         }
         
-        await prisma.message.create({
+        const newMsg = await prisma.message.create({
           data: {
             conversationId,
             body: node.type === 'LIST' ? `[LISTA: ${finalContent}]` : finalContent,
@@ -330,6 +555,7 @@ export const botEngine = {
             type: 'chat'
           }
         });
+        await broadcastMessage(newMsg.id);
       }
 
       await prisma.conversation.update({
@@ -358,9 +584,10 @@ export const botEngine = {
     } else if (node.type === 'TRANSFER' || node.routingDepartmentId) {
       if (node.content) {
         await whatsappService.sendMessage(instanceName, remoteJid, node.content);
-        await prisma.message.create({
+        const newMsg = await prisma.message.create({
           data: { conversationId, body: node.content, fromMe: true, type: 'chat' }
         });
+        await broadcastMessage(newMsg.id);
       }
       await prisma.conversation.update({
         where: { id: conversationId },
@@ -376,7 +603,7 @@ export const botEngine = {
     }
   },
 
-  async triggerFlow(flowId: string, conversationId: string, instanceName: string, remoteJid: string) {
+  async triggerFlow(flowId: string, conversationId: string, instanceName: string, remoteJid: string): Promise<void> {
     const flow = await prisma.chatbotFlow.findUnique({
       where: { id: flowId },
       include: { nodes: { orderBy: { id: 'asc' }, include: { options: true } } }

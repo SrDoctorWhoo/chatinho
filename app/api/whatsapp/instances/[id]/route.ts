@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { telegramService } from '@/lib/telegram';
 import { whatsappService } from '@/lib/whatsapp';
 
 export async function PATCH(
@@ -18,33 +19,40 @@ export async function PATCH(
     const instance = await prisma.whatsappInstance.findUnique({ where: { id } });
     if (!instance) return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
 
-    const updateData: any = {};
-    
+    const updateData: Record<string, unknown> = {};
+
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
     if (body.integration !== undefined) updateData.integration = body.integration;
     if (body.token !== undefined) updateData.token = body.token;
     if (body.phoneNumberId !== undefined) updateData.phoneNumberId = body.phoneNumberId;
     if (body.wabaId !== undefined) updateData.wabaId = body.wabaId;
-    
+
     if (body.departmentIds !== undefined) {
       updateData.departments = {
-        set: body.departmentIds.map((id: string) => ({ id }))
+        set: body.departmentIds.map((departmentId: string) => ({ id: departmentId })),
       };
     }
 
-    // Se for uma instância Meta e os dados de config mudaram, atualiza na Evolution também
     if (instance.integration === 'WHATSAPP-BUSINESS' && (body.token || body.phoneNumberId || body.wabaId)) {
-      try {
-        await whatsappService.updateMetaSettings(instance.instanceId, {
-          token: body.token || instance.token || '',
-          phoneNumberId: body.phoneNumberId || instance.phoneNumberId || '',
-          wabaId: body.wabaId || instance.wabaId || ''
-        });
-        console.log(`[API] Configurações Meta sincronizadas para ${instance.instanceId}`);
-      } catch (err: any) {
-        console.error(`[API] Erro ao sincronizar com Evolution:`, err.message);
-        // Opcional: retornar erro aqui se a sincronização for crítica
+      await whatsappService.updateMetaSettings(instance.instanceId, {
+        token: body.token || instance.token || '',
+        phoneNumberId: body.phoneNumberId || instance.phoneNumberId || '',
+        wabaId: body.wabaId || instance.wabaId || '',
+      });
+      console.log(`[API] Configuracoes Meta sincronizadas para ${instance.instanceId}`);
+    }
+
+    if ((body.integration === 'TELEGRAM' || instance.integration === 'TELEGRAM') && body.token !== undefined) {
+      const nextToken = typeof body.token === 'string' ? body.token.trim() : '';
+
+      if (!nextToken) {
+        return NextResponse.json({ error: 'Telegram bot token is required' }, { status: 400 });
       }
+
+      const botIdentity = await telegramService.getMe(nextToken);
+      await telegramService.setWebhook(instance.instanceId, nextToken);
+      updateData.status = 'CONNECTED';
+      updateData.number = botIdentity.username ? `@${botIdentity.username}` : String(botIdentity.id);
     }
 
     const updatedInstance = await prisma.whatsappInstance.update({
@@ -54,16 +62,17 @@ export async function PATCH(
         departments: {
           select: {
             id: true,
-            name: true
-          }
-        }
-      }
+            name: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json(updatedInstance);
-  } catch (error: any) {
-    console.error('[API] Erro ao atualizar instância:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update instance';
+    console.error('[API] Erro ao atualizar instancia:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -78,25 +87,30 @@ export async function DELETE(
 
   try {
     const instance = await prisma.whatsappInstance.findUnique({
-      where: { id }
+      where: { id },
     });
 
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    // 1. Deleta na Evolution API
-    console.log(`[Evolution] Deletando instância "${instance.instanceId}"...`);
-    await whatsappService.deleteInstance(instance.instanceId);
+    if (instance.integration === 'TELEGRAM') {
+      if (instance.token) {
+        await telegramService.deleteWebhook(instance.token);
+      }
+    } else {
+      console.log(`[Evolution] Deletando instancia "${instance.instanceId}"...`);
+      await whatsappService.deleteInstance(instance.instanceId);
+    }
 
-    // 2. Deleta do Banco de Dados local
     await prisma.whatsappInstance.delete({
-      where: { id }
+      where: { id },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('[API] Erro ao deletar instância:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to delete instance';
+    console.error('[API] Erro ao deletar instancia:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

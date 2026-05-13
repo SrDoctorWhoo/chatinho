@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Search, User, MessageSquare, Bot } from 'lucide-react';
+import { Search, User, MessageSquare, Bot, Send } from 'lucide-react';
 
 interface ConversationListProps {
   conversations: any[];
@@ -44,6 +44,13 @@ export const ConversationList = React.memo(function ConversationList({
       return nameMatch || numMatch;
     });
   }, [conversations, searchTerm]);
+  
+  // Força re-render a cada 30s para atualizar os indicadores de "tempo real" (brilho de nova msg)
+  const [now, setNow] = useState(Date.now());
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-transparent">
@@ -169,6 +176,12 @@ export const ConversationList = React.memo(function ConversationList({
                           <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter">Bot</span>
                         </div>
                       )}
+                      {conv.platform === 'TELEGRAM' && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                          <Send size={10} className="text-blue-400" />
+                          <span className="text-[8px] font-black text-blue-400 uppercase tracking-tighter text-[7px]">TG</span>
+                        </div>
+                      )}
                     </div>
                     {conv.contact.name && conv.contact.name !== conv.contact.number && (
                       <div className="flex items-center gap-2 mt-0.5">
@@ -185,9 +198,13 @@ export const ConversationList = React.memo(function ConversationList({
                         )}
                       </div>
                     )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                  </div>                  <div className="flex flex-col items-end gap-1">
+                    <span className={cn(
+                      "text-[10px] font-bold uppercase tracking-tighter transition-all duration-700",
+                      activeId === conv.id ? "text-emerald-400" : "text-slate-500",
+                      // Brilha se a mensagem for recente (último minuto)
+                      conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) ? "text-emerald-400 font-black scale-105" : ""
+                    )}>
                       {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
                     {conv.status === 'QUEUED' && (
@@ -202,13 +219,20 @@ export const ConversationList = React.memo(function ConversationList({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <p className={cn(
-                    "text-[13px] truncate flex-1 font-medium",
-                    conv.status === 'QUEUED' ? "text-red-400/80" : conv.isBotActive ? "text-amber-400/60" : "text-slate-500 group-hover:text-slate-400"
+                    "text-[13px] truncate flex-1 font-medium transition-all duration-700",
+                    conv.status === 'QUEUED' ? "text-red-400/80" : conv.isBotActive ? "text-amber-400/60" : "text-slate-500 group-hover:text-slate-400",
+                    // Se a mensagem for nova, destaca
+                    conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) ? "text-slate-100 font-semibold" : ""
                   )}>
-                    {conv.status === 'QUEUED' ? 'Aguardando atendimento...' : (conv.messages?.[0]?.body || 'Inicie uma conversa')}
+                    {conv.messages?.[0]?.body || (conv.status === 'QUEUED' ? 'Aguardando atendimento...' : 'Inicie uma conversa')}
                   </p>
+                  {/* Ponto de notificação para novas mensagens em conversas não ativas */}
+                  {conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) && activeId !== conv.id && (
+                    <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse flex-shrink-0" />
+                  )}
+
                   {conv.assignedTo && filter !== 'mine' && (
                     <div className="h-5 px-2 rounded-md bg-white/5 border border-white/5 flex items-center">
                       <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">

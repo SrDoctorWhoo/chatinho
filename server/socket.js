@@ -30,10 +30,18 @@ app.post('/notify', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+  console.log(`[Socket] User connected: ${socket.id} (Transport: ${socket.conn.transport.name})`);
 
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+  socket.conn.on('upgrade', (transport) => {
+    console.log(`[Socket] Transport upgraded to ${transport.name} for ${socket.id}`);
+  });
+
+  socket.on('error', (err) => {
+    console.error(`[Socket] Error for ${socket.id}:`, err);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] User disconnected: ${socket.id} (Reason: ${reason})`);
   });
 });
 

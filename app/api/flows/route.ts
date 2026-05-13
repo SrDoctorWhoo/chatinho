@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,17 +20,44 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { name, description, instanceIds } = await req.json();
+  try {
+    const { name, description, instanceIds } = await req.json();
 
-  const flow = await prisma.chatbotFlow.create({
-    data: {
-      name,
-      description,
-      instances: instanceIds?.length ? {
-        connect: instanceIds.map((id: string) => ({ id }))
-      } : undefined
-    }
-  });
+    const flow = await prisma.chatbotFlow.create({
+      data: {
+        name,
+        description,
+        instances: instanceIds?.length ? {
+          connect: instanceIds.map((id: string) => ({ id }))
+        } : undefined
+      }
+    });
 
-  return NextResponse.json(flow);
+    // 📝 Registrar Log
+    try {
+      const { createAuditLog } = await import('@/lib/audit');
+      await createAuditLog({
+        userId: session?.user?.id,
+        action: 'CREATE',
+        description: `Novo fluxo criado: ${name}`,
+        target: 'Fluxos',
+        type: 'success'
+      });
+    } catch (e) {}
+
+    return NextResponse.json(flow);
+  } catch (error: any) {
+    // Registrar log de erro
+    try {
+      const { createAuditLog } = await import('@/lib/audit');
+      await createAuditLog({
+        action: 'LOG',
+        description: `Falha ao criar fluxo: ${error.message || 'Erro desconhecido'}`,
+        target: 'Fluxos',
+        type: 'error'
+      });
+    } catch (e) {}
+
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }

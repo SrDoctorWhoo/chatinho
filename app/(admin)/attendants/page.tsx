@@ -216,6 +216,7 @@ export default function AttendantsPage() {
                     "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
                     user.role === 'ADMIN' ? "bg-amber-500/10 border-amber-500/20 text-amber-500" :
                     user.role === 'MANAGER' ? "bg-purple-500/10 border-purple-500/20 text-purple-400" :
+                    user.role === 'INTERNAL' ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-400" :
                     "bg-blue-500/10 border-blue-500/20 text-blue-400"
                   )}>
                     {user.role}
@@ -317,6 +318,7 @@ export default function AttendantsPage() {
                     className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all appearance-none"
                   >
                     <option value="ATTENDANT" className="bg-slate-900">Atendente</option>
+                    <option value="INTERNAL" className="bg-slate-900">Interno (Apenas Chat/Planner)</option>
                     {session?.user?.role === 'ADMIN' && <option value="MANAGER" className="bg-slate-900">Gerente</option>}
                     {session?.user?.role === 'ADMIN' && <option value="ADMIN" className="bg-slate-900">Administrador</option>}
                   </select>

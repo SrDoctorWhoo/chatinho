@@ -6,5 +6,5 @@ export default defineConfig({
   datasource: {
     url: env("DATABASE_URL"),
   },
-  engineType: "library",
+  // engineType: "library",
 });

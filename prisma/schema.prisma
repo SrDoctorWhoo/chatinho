@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
 
@@ -10,186 +7,254 @@ datasource db {
   provider = "sqlserver"
 }
 
-// Enums are not supported natively by SQL Server connector in Prisma
-// We use String and handle logic in application
-
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  password      String
-  role          String  @default("ATTENDANT")
-  signature     String?   @db.NVarChar(Max)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
+  id                    String         @id @default(cuid())
+  name                  String?
+  email                 String         @unique
+  password              String
+  role                  String         @default("ATTENDANT")
+  image                 String?        @db.NVarChar(Max)
+  signature             String?        @db.NVarChar(Max)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
   assignedConversations Conversation[] @relation("AssignedTo")
   departments           Department[]   @relation("UserDepartments")
+  sentInternalMessages InternalMessage[]
+  internalChats        InternalChatParticipant[]
+  assignedTasks        Task[]         @relation("AssignedTasks")
+  createdTasks         Task[]         @relation("CreatedTasks")
 }
 
 model Department {
-  id            String    @id @default(cuid())
-  name          String    @unique
-  description   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  users         User[]         @relation("UserDepartments")
-  conversations Conversation[]
-  chatbotNodes  ChatbotNode[]  @relation("DepartmentRouting")
+  id                String             @id @default(cuid())
+  name              String             @unique
+  description       String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  chatbotNodes      ChatbotNode[]      @relation("DepartmentRouting")
+  conversations     Conversation[]
   whatsappInstances WhatsappInstance[] @relation("InstanceDepartments")
+  users             User[]             @relation("UserDepartments")
+  tasks             Task[]
 }
 
 model Contact {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String?
-  number        String    @unique
-  email         String?   @db.NVarChar(255)
-  profilePic    String?   @db.NVarChar(Max)
-  notes         String?   @db.NVarChar(Max)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
+  number        String
+  platform      String         @default("WHATSAPP")
+  email         String?        @db.NVarChar(255)
+  profilePic    String?        @db.NVarChar(Max)
+  notes         String?        @db.NVarChar(Max)
+  observations  String?        @db.NVarChar(Max)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   conversations Conversation[]
+
+  @@unique([number, platform])
 }
 
 model Conversation {
-  id              String           @id @default(cuid())
-  contactId       String
-  status          String @default("BOT")
-  assignedToId    String?
-  departmentId    String?
-  lastMessageAt   DateTime         @default(now())
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  
-  // Automation state
+  id                 String      @id @default(cuid())
+  contactId          String
+  status             String      @default("BOT")
+  platform           String      @default("WHATSAPP")
+  assignedToId       String?
+  departmentId       String?
+  lastMessageAt      DateTime    @default(now())
+  closedAt           DateTime?
+  protocol           String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
   currentFlowId      String?
   currentStepId      String?
-  isBotActive        Boolean          @default(true)
-  difyConversationId String?          @db.NVarChar(Max)
-  variables          String?          @db.NVarChar(Max) // JSON string for dynamic variables
-
-
-  contact         Contact          @relation(fields: [contactId], references: [id])
-
-  assignedTo      User?            @relation("AssignedTo", fields: [assignedToId], references: [id])
-  department      Department?      @relation(fields: [departmentId], references: [id])
-  messages        Message[]
+  isBotActive        Boolean     @default(true)
+  difyConversationId String?     @db.NVarChar(Max)
+  aiSummary          String?     @db.NVarChar(Max)
+  variables          String?     @db.NVarChar(Max)
+  assignedTo         User?       @relation("AssignedTo", fields: [assignedToId], references: [id])
+  contact            Contact     @relation(fields: [contactId], references: [id])
+  department         Department? @relation(fields: [departmentId], references: [id])
+  messages           Message[]
 }
 
 model ChatbotFlow {
-  id              String   @id @default(cuid())
+  id              String             @id @default(cuid())
   name            String
   description     String?
-  isActive        Boolean  @default(true)
-  isDefault       Boolean  @default(false)
-  triggerKeywords String?  @db.NVarChar(Max) // Palavras-chave separadas por vírgula
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now()) @updatedAt
+  isActive        Boolean            @default(true)
+  isDefault       Boolean            @default(false)
+  triggerKeywords String?            @db.NVarChar(Max)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @default(now()) @updatedAt
   nodes           ChatbotNode[]
   instances       WhatsappInstance[] @relation("FlowInstances")
 }
 
 model ChatbotNode {
-  id          String         @id @default(cuid())
-  flowId      String
-  type        String       @default("MESSAGE")
-  content     String  @db.NVarChar(Max)       // The text to send
-  
-  // Routing action
+  id                  String               @id @default(cuid())
+  flowId              String
+  type                String               @default("MESSAGE")
+  content             String               @db.NVarChar(Max)
+  title               String?              @db.NVarChar(Max)
+  footer              String?              @db.NVarChar(Max)
+  buttonText          String?              @db.NVarChar(Max)
   routingDepartmentId String?
-
-  flow        ChatbotFlow    @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  routingDepartment Department? @relation("DepartmentRouting", fields: [routingDepartmentId], references: [id])
-  options     ChatbotOption[]
-  
-  // For linear flows without options
-  // Integration for AI nodes
-  integrationId String?
-  integration   ExternalIntegration? @relation(fields: [integrationId], references: [id])
-
-  nextStepId  String?
-  targetFlowId String?      // To trigger another flow
-  variableName String?     // For WAIT_INPUT: name of the variable to store the answer
+  integrationId       String?
+  nextStepId          String?
+  targetFlowId        String?
+  variableName        String?
+  order               Int                    @default(0)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @default(now()) @updatedAt
+  flow                ChatbotFlow          @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  integration         ExternalIntegration? @relation(fields: [integrationId], references: [id])
+  routingDepartment   Department?          @relation("DepartmentRouting", fields: [routingDepartmentId], references: [id])
+  options             ChatbotOption[]
 }
-
 
 model ChatbotOption {
-  id          String      @id @default(cuid())
-  nodeId      String
-  keyword     String      // e.g. "1", "Financeiro"
-  label       String      // e.g. "Falar com financeiro"
-  targetNodeId String?    // ID of the node to go to
-  targetFlowId String?    // To trigger another flow
-  
-  node        ChatbotNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  id           String      @id @default(cuid())
+  nodeId       String
+  keyword      String
+  label        String
+  targetNodeId String?
+  targetFlowId String?
+  node         ChatbotNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 }
-
-// NodeType enum removed
 
 model Message {
   id             String       @id @default(cuid())
   conversationId String
-  body           String  @db.NVarChar(Max)
+  body           String       @db.NVarChar(Max)
   fromMe         Boolean      @default(false)
   timestamp      DateTime     @default(now())
-  type           String       @default("chat") // chat, image, video, etc.
-  mediaUrl       String?   @db.NVarChar(Max)
-  
+  type           String       @default("chat")
+  mediaUrl       String?      @db.NVarChar(Max)
   conversation   Conversation @relation(fields: [conversationId], references: [id])
+}
+
+model InternalChat {
+  id           String                    @id @default(cuid())
+  name         String?
+  type         String                    @default("DIRECT") // DIRECT or GROUP
+  departmentId String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  messages     InternalMessage[]
+  participants InternalChatParticipant[]
+}
+
+model InternalChatParticipant {
+  id     String       @id @default(cuid())
+  chatId String
+  userId String
+  chat   InternalChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+}
+
+model InternalMessage {
+  id        String       @id @default(cuid())
+  chatId    String
+  senderId  String
+  body      String       @db.NVarChar(Max)
+  type      String       @default("chat")
+  mediaUrl  String?      @db.NVarChar(Max)
+  createdAt DateTime     @default(now())
+  chat      InternalChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender    User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }
 
 model SystemSettings {
   id                    String   @id @default("global")
   isBotEnabled          Boolean  @default(true)
-  
-  // Legacy fields (kept to avoid SQL Server constraint issues)
   difyEnabled           Boolean  @default(false)
   difyApiKey            String?  @db.NVarChar(Max)
   difyUrl               String?  @db.NVarChar(Max)
-  
-  // Chat behavior
   chatExpirationMinutes Int      @default(60)
-  
+  internetIntegId       String?  @db.NVarChar(Max)
+  comercialIntegId      String?  @db.NVarChar(Max)
+  welcomeFlowId         String?  @db.NVarChar(Max)
   updatedAt             DateTime @updatedAt
 }
 
-
 model ExternalIntegration {
-  id          String   @id @default(cuid())
-  name        String
-  type        String   // DIFY, OPENAI, WEBHOOK, etc.
-  method      String?  @default("POST") // For Webhooks: GET or POST
-  apiKey      String?  @db.NVarChar(Max)
-  baseUrl     String?  @db.NVarChar(Max)
-  config      String?  @db.NVarChar(Max) // JSON metadata
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id           String        @id @default(cuid())
+  name         String
+  type         String
+  method       String?       @default("POST")
+  apiKey       String?       @db.NVarChar(Max)
+  baseUrl      String?       @db.NVarChar(Max)
+  config       String?       @db.NVarChar(Max)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   chatbotNodes ChatbotNode[]
 }
 
-
 model WhatsappInstance {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  instanceId  String   @unique
-  status      String   @default("DISCONNECTED") // CONNECTED, DISCONNECTED, QRCODE
-  number      String?
-  integration String?  @default("WHATSAPP-BAILEYS") // WHATSAPP-BAILEYS, WHATSAPP-BUSINESS
-  isActive    Boolean  @default(true)
-  qrcode      String?   @db.NVarChar(Max)
-  
-  // Meta Cloud API Settings
-  token       String?   @db.NVarChar(Max)
+  id            String        @id @default(cuid())
+  name          String        @unique
+  instanceId    String        @unique
+  status        String        @default("DISCONNECTED")
+  number        String?
+  integration   String?       @default("WHATSAPP-BAILEYS")
+  isActive      Boolean       @default(true)
+  qrcode        String?       @db.NVarChar(Max)
+  token         String?       @db.NVarChar(Max)
   phoneNumberId String?
-  wabaId      String?
+  wabaId        String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  flows         ChatbotFlow[] @relation("FlowInstances")
+  departments   Department[]  @relation("InstanceDepartments")
+}
+
+model Task {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?     @db.NVarChar(Max)
+  status        String      @default("TODO") // TODO, DOING, DONE
+  priority      String      @default("MEDIUM") // LOW, MEDIUM, HIGH
+  dueDate       DateTime?
+  departmentId  String?
+  assignedToId  String?
+  createdById   String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   
-  departments Department[] @relation("InstanceDepartments")
-  flows       ChatbotFlow[] @relation("FlowInstances")
-  
+  department    Department? @relation(fields: [departmentId], references: [id])
+  assignedTo    User?       @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy     User        @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model AIUsage {
+  id             String   @id @default(cuid())
+  conversationId String
+  integrationId  String
+  action         String   // RESPONSE, TRANSFER
+  tokens         Int?
+  duration       Int?     // milliseconds
+  createdAt      DateTime @default(now())
+}
+
+model CannedResponse {
+  id        String   @id @default(cuid())
+  shortcut  String   @unique // e.g. "ola"
+  content   String   @db.NVarChar(Max)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String   // LOGIN, CREATE, UPDATE, DELETE, etc.
+  description String   @db.NVarChar(Max)
+  target      String?  // O que foi alterado (Setores, Usuários, etc.)
+  ip          String?
+  type        String   @default("info") // success, info, error, warning
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

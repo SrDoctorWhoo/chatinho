@@ -1,6 +1,6 @@
 'use client';
 
-import { Save, ArrowLeft, GitBranch, Smartphone, Check, Loader2, Menu } from 'lucide-react';
+import { Save, ArrowLeft, GitBranch, Smartphone, Check, Loader2, Menu, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,7 @@ interface FlowHeaderProps {
   selectedInstanceIds: string[];
   onInstanceToggle: (id: string) => void;
   onToggleSidebar: () => void;
+  onOpenSettings: () => void;
 }
 
 export default function FlowHeader({ 
@@ -22,7 +23,8 @@ export default function FlowHeader({
   instances, 
   selectedInstanceIds, 
   onInstanceToggle,
-  onToggleSidebar 
+  onToggleSidebar,
+  onOpenSettings
 }: FlowHeaderProps) {
   const router = useRouter();
 
@@ -71,7 +73,19 @@ export default function FlowHeader({
       </div>
 
       <div className="flex items-center gap-2 md:gap-6">
-        {/* Instâncias Selector - Estilo Premium - Oculto em Mobile muito pequeno */}
+        {/* Gatilhos e Configs */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={onOpenSettings}
+          className="flex items-center gap-2 px-3 md:px-5 py-2 md:py-3 rounded-2xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-all border border-amber-500/20 shadow-lg shadow-amber-500/5 group shrink-0"
+        >
+          <Zap size={18} className="md:w-5 md:h-5 group-hover:fill-amber-500 transition-all" />
+          <span className="hidden sm:inline text-[10px] md:text-xs font-black uppercase tracking-widest">Gatilhos</span>
+        </motion.button>
+
+        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 md:mx-0" />
+
+        {/* Instâncias Selector */}
         <div className="hidden sm:flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-x-auto max-w-[150px] md:max-w-none no-scrollbar">
           <div className="hidden md:flex px-3 items-center gap-2 text-slate-400">
             <Smartphone size={14} />

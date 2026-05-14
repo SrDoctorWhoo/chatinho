@@ -30,14 +30,34 @@ export async function GET() {
     const dbInstances = await prisma.whatsappInstance.findMany({
       include: {
         departments: {
-          select: {
-            id: true,
-            name: true,
-          },
+          select: { id: true, name: true },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    let widgetInstances: any[] = [];
+    try {
+      if (prisma.widgetInstance) {
+        widgetInstances = await prisma.widgetInstance.findMany({
+          include: {
+            departments: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    } catch (widgetErr) {
+      console.warn('[API] Widget query failed (non-fatal):', widgetErr);
+    }
+
+    const mappedWidgets = widgetInstances.map(w => ({
+      ...w,
+      instanceId: w.id,
+      integration: 'WIDGET',
+      status: w.isActive ? 'CONNECTED' : 'DISCONNECTED'
+    }));
 
     const updatedInstances = await Promise.all(
       dbInstances.map(async (inst) => {
@@ -118,9 +138,13 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json(updatedInstances);
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch instances' }, { status: 500 });
+    return NextResponse.json([...updatedInstances, ...mappedWidgets]);
+  } catch (error) {
+    console.error('[API] Error fetching instances:', error);
+    return NextResponse.json({ 
+      error: 'Failed to fetch instances',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
@@ -165,6 +189,23 @@ export async function POST(req: Request) {
       await telegramService.setWebhook(normalizedName, normalizedToken);
       initialStatus = 'CONNECTED';
       displayNumber = botIdentity.username ? `@${botIdentity.username}` : String(botIdentity.id);
+    } else if (integrationType === 'WIDGET') {
+      const widget = await prisma.widgetInstance.create({
+        data: {
+          name: normalizedName,
+          isActive: true,
+          config: JSON.stringify({ theme: 'emerald', welcomeMessage: 'Olá! Como podemos ajudar?' })
+        },
+        include: {
+          departments: { select: { id: true, name: true } }
+        }
+      });
+      return NextResponse.json({
+        ...widget,
+        instanceId: widget.id,
+        integration: 'WIDGET',
+        status: 'CONNECTED'
+      });
     } else {
       await whatsappService.createInstance(normalizedName);
     }

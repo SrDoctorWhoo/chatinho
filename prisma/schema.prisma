@@ -15,6 +15,8 @@ model User {
   role                  String         @default("ATTENDANT")
   image                 String?        @db.NVarChar(Max)
   signature             String?        @db.NVarChar(Max)
+   canAccessCustomerChat Boolean        @default(true)
+  canAccessInternalChat Boolean        @default(true)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   assignedConversations Conversation[] @relation("AssignedTo")
@@ -29,13 +31,17 @@ model Department {
   id                String             @id @default(cuid())
   name              String             @unique
   description       String?
+  idleTimeout       Int?               // Tempo em minutos sem resposta até fechar
+  idleCloseMessage  String?            @db.NVarChar(Max)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   chatbotNodes      ChatbotNode[]      @relation("DepartmentRouting")
+  triggerFlows      ChatbotFlow[]      @relation("TriggerFlows")
   conversations     Conversation[]
   whatsappInstances WhatsappInstance[] @relation("InstanceDepartments")
   users             User[]             @relation("UserDepartments")
   tasks             Task[]
+  widgetInstances   WidgetInstance[]   @relation("WidgetDepartments")
 }
 
 model Contact {
@@ -75,6 +81,8 @@ model Conversation {
   assignedTo         User?       @relation("AssignedTo", fields: [assignedToId], references: [id])
   contact            Contact     @relation(fields: [contactId], references: [id])
   department         Department? @relation(fields: [departmentId], references: [id])
+  widgetInstanceId   String?
+  widgetInstance     WidgetInstance? @relation(fields: [widgetInstanceId], references: [id])
   messages           Message[]
 }
 
@@ -84,11 +92,13 @@ model ChatbotFlow {
   description     String?
   isActive        Boolean            @default(true)
   isDefault       Boolean            @default(false)
-  triggerKeywords String?            @db.NVarChar(Max)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @default(now()) @updatedAt
-  nodes           ChatbotNode[]
-  instances       WhatsappInstance[] @relation("FlowInstances")
+  triggerKeywords     String?            @db.NVarChar(Max)
+  triggerDepartmentId String?
+  triggerDepartment   Department?        @relation("TriggerFlows", fields: [triggerDepartmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @default(now()) @updatedAt
+  nodes               ChatbotNode[]
+  instances           WhatsappInstance[] @relation("FlowInstances")
 }
 
 model ChatbotNode {
@@ -105,6 +115,7 @@ model ChatbotNode {
   targetFlowId        String?
   variableName        String?
   order               Int                    @default(0)
+  payloadMapping      String?              @db.NVarChar(Max)
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @default(now()) @updatedAt
   flow                ChatbotFlow          @relation(fields: [flowId], references: [id], onDelete: Cascade)
@@ -210,6 +221,17 @@ model WhatsappInstance {
   updatedAt     DateTime      @updatedAt
   flows         ChatbotFlow[] @relation("FlowInstances")
   departments   Department[]  @relation("InstanceDepartments")
+}
+
+model WidgetInstance {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  isActive      Boolean       @default(true)
+  config        String?       @db.NVarChar(Max) // JSON config for colors, initial message, domain restrictions, etc.
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  departments   Department[]  @relation("WidgetDepartments")
+  conversations Conversation[]
 }
 
 model Task {

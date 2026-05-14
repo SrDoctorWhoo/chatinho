@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { checkAndTriggerDepartmentFlow } from '@/lib/bot/triggerHandler';
 
 export async function POST(
   req: Request,
@@ -56,7 +57,7 @@ export async function POST(
 
     // Notify socket
     try {
-      await fetch('http://127.0.0.1:3005/notify', {
+      await fetch(process.env.SOCKET_URL || 'http://localhost:3000/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,6 +71,11 @@ export async function POST(
       });
     } catch (err) {
       console.error('Failed to notify transfer socket:', err);
+    }
+
+    // 🚀 VERIFICAR GATILHO DE FLUXO POR DEPARTAMENTO
+    if (departmentId && !validUserId) {
+      await checkAndTriggerDepartmentFlow(id, departmentId);
     }
 
     return NextResponse.json(updatedConversation);

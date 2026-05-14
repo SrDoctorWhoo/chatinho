@@ -49,6 +49,8 @@ export async function POST(req: Request) {
     
     // Fix: variables is already a 'let' object from line 13
     variables.departamentos = deptsText;
+    variables.history = variables.history || "";
+    variables.historico = variables.historico || "";
 
     const processedMessage = replaceVars(message || '');
     let url = integration.baseUrl || '';

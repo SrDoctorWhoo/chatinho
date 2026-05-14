@@ -1,4 +1,4 @@
-// Prisma client singleton - last sync: 2026-05-13
+// Prisma client singleton - last sync: 2026-05-14T14:56
 import { PrismaClient } from '@prisma/client';
 import { PrismaMssql } from '@prisma/adapter-mssql';
 

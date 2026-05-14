@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { GitBranch, Plus, Play, Pause, Trash2, Edit2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 export default function FlowsPage() {
   const { data: session, status } = useSession();
@@ -74,93 +75,92 @@ export default function FlowsPage() {
   };
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-10 p-12 bg-slate-950 min-h-screen">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Fluxos de Automação</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Crie e gerencie respostas automáticas inteligentes.</p>
+          <h1 className="text-4xl font-black text-white tracking-tight">Fluxos de Automação</h1>
+          <p className="text-slate-400 font-black uppercase tracking-widest text-[11px] mt-2 opacity-70">Crie e gerencie respostas automáticas inteligentes.</p>
         </div>
         <button 
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
+          className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-xs rounded-2xl transition-all shadow-2xl shadow-blue-600/30 active:scale-[0.98]"
         >
           <Plus size={20} />
           Novo Fluxo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {loading ? (
           [1, 2, 3].map(i => (
-            <div key={i} className="glass-card p-6 rounded-3xl animate-pulse h-48 bg-slate-200/50 dark:bg-slate-800/50" />
+            <div key={i} className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/5 animate-pulse h-64" />
           ))
         ) : flows.length === 0 ? (
-          <div className="col-span-full py-20 text-center glass-card rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-            <GitBranch className="mx-auto text-slate-300 dark:text-slate-700 mb-4" size={48} />
-            <p className="text-slate-500 dark:text-slate-400">Nenhum fluxo criado. Comece criando o seu primeiro!</p>
+          <div className="col-span-full py-32 text-center bg-slate-900/30 rounded-[3rem] border-4 border-dashed border-white/5">
+            <GitBranch className="mx-auto text-slate-800 mb-6" size={64} />
+            <p className="text-slate-500 font-black uppercase tracking-widest text-sm">Nenhum fluxo criado. Comece criando o seu primeiro!</p>
           </div>
         ) : (
           flows.map((flow) => (
-            <div key={flow.id} className="glass-card p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm flex flex-col">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-2xl bg-indigo-600/10 text-indigo-600">
-                  <GitBranch size={24} />
+            <div key={flow.id} className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/5 hover:border-blue-500/50 transition-all group flex flex-col backdrop-blur-sm shadow-2xl">
+              <div className="flex items-start justify-between mb-8">
+                <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-500 shadow-sm border border-blue-500/20">
+                  <GitBranch size={28} />
                 </div>
                 <div className={cn(
-                  "px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5",
+                  "px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 border",
                   flow.isActive 
-                    ? "bg-emerald-500/10 text-emerald-600" 
-                    : "bg-slate-500/10 text-slate-500"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                    : "bg-slate-800 text-slate-400 border-slate-700"
                 )}>
                   {flow.isActive ? <Play size={10} fill="currentColor" /> : <Pause size={10} fill="currentColor" />}
                   {flow.isActive ? 'ATIVO' : 'INATIVO'}
                 </div>
               </div>
 
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">{flow.name}</h3>
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-black text-white tracking-tight leading-tight">{flow.name}</h3>
                   {flow.isDefault && (
-                    <span className="px-2 py-0.5 rounded-md bg-blue-600/10 text-blue-600 text-[10px] font-bold">PADRÃO</span>
+                    <span className="px-3 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20">PADRÃO</span>
                   )}
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
-                  {flow.description || 'Sem descrição'}
+                <p className="text-sm text-slate-400 font-medium leading-relaxed line-clamp-2 opacity-80">
+                  {flow.description || 'Sem descrição definida para este fluxo.'}
                 </p>
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <div className="pt-4 flex items-center gap-3 flex-wrap">
+                  <span className="px-3 py-1 bg-slate-800 rounded-lg text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] border border-white/5">
                     {flow._count?.nodes || 0} PASSOS
                   </span>
-                  <span className="text-slate-700 dark:text-slate-700">·</span>
                   {flow.instances?.length > 0 ? (
-                    <div className="flex gap-1 flex-wrap">
+                    <div className="flex gap-2 flex-wrap">
                       {flow.instances.map((inst: any) => (
-                        <span key={inst.id} className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-500 text-[10px] font-bold">
+                        <span key={inst.id} className="px-3 py-1 bg-blue-900/30 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest">
                           {inst.name}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 text-[10px] font-bold">
-                      TODAS
+                    <span className="px-3 py-1 bg-slate-800 text-slate-500 border border-white/5 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                      TODAS AS INSTÂNCIAS
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+              <div className="mt-10 pt-8 border-t border-white/5 flex items-center gap-3">
                 <Link 
                   href={`/flows/${flow.id}`}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl transition-all"
+                  className="flex-1 flex items-center justify-center gap-3 py-4 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-xl shadow-blue-600/20 border border-white/10"
                 >
-                  <Edit2 size={16} />
-                  Editar
+                  <Edit2 size={18} />
+                  Configurar
                 </Link>
                 <button 
                   onClick={() => handleDeleteFlow(flow.id)}
-                  className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                  className="p-4 text-slate-600 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all border border-transparent hover:border-red-500/20"
                 >
-                  <Trash2 size={20} />
+                  <Trash2 size={24} />
                 </button>
               </div>
             </div>
@@ -170,55 +170,66 @@ export default function FlowsPage() {
 
       {/* Create Flow Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-md p-8 rounded-3xl shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Novo Fluxo</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
-                <X size={20} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-slate-900 border border-slate-800 w-full max-w-md p-10 rounded-[3rem] shadow-[0_30px_70px_rgba(0,0,0,0.5)]"
+          >
+            <div className="flex items-center justify-between mb-10">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600/20 flex items-center justify-center text-blue-500">
+                  <GitBranch size={24} />
+                </div>
+                <h2 className="text-2xl font-black text-white tracking-tight">Novo Fluxo</h2>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
+                <X size={24} />
               </button>
             </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest px-2">
                   Nome do Fluxo
                 </label>
                 <input
                   type="text"
                   value={newFlow.name}
                   onChange={(e) => setNewFlow({ ...newFlow, name: e.target.value })}
-                  className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="block w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white focus:border-blue-500 outline-none transition-all placeholder:text-slate-700 font-bold"
                   placeholder="Ex: Boas-vindas"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest px-2">
                   Descrição
                 </label>
                 <textarea
                   value={newFlow.description}
                   onChange={(e) => setNewFlow({ ...newFlow, description: e.target.value })}
-                  className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  className="block w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white focus:border-blue-500 outline-none resize-none transition-all placeholder:text-slate-700 font-bold"
                   rows={3}
                   placeholder="Breve descrição do fluxo..."
                 />
               </div>
-              <div className="flex items-center gap-3 mt-8">
+              
+              <div className="flex items-center gap-4 mt-12">
                 <button 
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition-all"
+                  className="flex-1 py-5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black uppercase tracking-widest text-[11px] rounded-2xl transition-all border border-white/5"
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={handleCreateFlow}
-                  className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20"
+                  className="flex-1 py-5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-[11px] rounded-2xl transition-all shadow-2xl shadow-blue-600/30 border border-white/10"
                 >
                   Criar Fluxo
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

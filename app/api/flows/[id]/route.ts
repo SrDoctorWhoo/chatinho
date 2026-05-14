@@ -40,7 +40,7 @@ export async function PUT(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { nodes, name, description, isActive, isDefault, triggerKeywords, instanceIds } = await req.json();
+    const { nodes, name, description, isActive, isDefault, triggerKeywords, triggerDepartmentId, instanceIds } = await req.json();
 
     // 1. Atualiza dados básicos do fluxo + vínculo de instâncias
     await prisma.chatbotFlow.update({
@@ -51,6 +51,7 @@ export async function PUT(
         isActive,
         isDefault,
         triggerKeywords,
+        triggerDepartmentId: triggerDepartmentId || null,
         // set substitui todas as instâncias vinculadas
         instances: {
           set: instanceIds?.length

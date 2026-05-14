@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  user?: any;
 }
 
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {

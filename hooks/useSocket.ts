@@ -9,15 +9,15 @@ export function useSocket() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    console.log('[Socket] Initializing connection...');
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    console.log('[Socket] Initializing connection to:', socketUrl);
     
-    const s = io(typeof window !== 'undefined' ? window.location.origin : '', {
+    const s = io(socketUrl, {
       path: '/socket.io',
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       withCredentials: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 2000,
-      timestampRequests: true,
       extraHeaders: {
         'ngrok-skip-browser-warning': '1'
       }
@@ -29,10 +29,10 @@ export function useSocket() {
     });
 
     s.on('connect_error', (err) => {
-      console.error('[Socket] Connection error:', err.message);
-      // Log extra details if available
       if (err.message === 'xhr poll error') {
-        console.warn('[Socket] XHR Poll Error detected. This often happens with ngrok or if the socket server is down.');
+        console.warn('[Socket] Polling failed, retrying with websocket...');
+      } else {
+        console.error('[Socket] Connection error:', err.message);
       }
       setConnected(false);
     });
@@ -40,10 +40,6 @@ export function useSocket() {
     s.on('disconnect', (reason) => {
       console.log('[Socket] Disconnected:', reason);
       setConnected(false);
-      // If disconnected due to transport error, try to switch to websocket directly
-      if (reason === 'transport error') {
-        console.log('[Socket] Transport error, will retry...');
-      }
     });
 
     setSocket(s);

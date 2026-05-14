@@ -119,10 +119,10 @@ export default function FlowEditorPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-[#020617]">
+      <div className="flex-1 flex items-center justify-center bg-[#020617]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">Iniciando Editor...</p>
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-widest animate-pulse">Iniciando Editor...</p>
         </div>
       </div>
     );
@@ -131,7 +131,7 @@ export default function FlowEditorPage() {
   const selectedNode = flow.nodes?.find((n: any) => n.id === selectedNodeId);
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-[#020617]">
+    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#020617]">
       <FlowHeader 
         flow={flow}
         saving={saving}
@@ -169,16 +169,22 @@ export default function FlowEditorPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSidebarOpen(false)}
-              className="absolute inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden"
             />
           )}
         </AnimatePresence>
 
-        <main className="flex-1 overflow-y-auto custom-scrollbar relative">
+        <main className="flex-1 relative overflow-hidden bg-slate-950">
           {/* Background Pattern */}
-          <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
+          <div 
+            className="absolute inset-0 z-0 opacity-[0.2]"
+            style={{
+              backgroundImage: `radial-gradient(circle at 1px 1px, #334155 1.5px, transparent 0)`,
+              backgroundSize: '32px 32px'
+            }}
+          />
           
-          <div className="relative p-0 min-h-full w-full">
+          <div className="relative p-0 h-full w-full custom-scrollbar overflow-y-auto">
             <AnimatePresence mode="wait">
               {selectedNode ? (
                 <motion.div
@@ -187,6 +193,7 @@ export default function FlowEditorPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3 }}
+                  className="min-h-full"
                 >
                   <NodeEditor 
                     node={selectedNode}
@@ -194,6 +201,8 @@ export default function FlowEditorPage() {
                     allFlows={allFlows}
                     departments={departments}
                     integrations={integrations}
+                    allInstances={allInstances}
+                    selectedInstanceIds={selectedInstanceIds}
                     onUpdate={updateNode}
                     onDelete={deleteNode}
                   />
@@ -202,35 +211,35 @@ export default function FlowEditorPage() {
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-10 mt-20"
+                  className="min-h-full flex flex-col items-center justify-center text-center max-w-4xl mx-auto space-y-8 md:space-y-12 py-12 md:py-20 px-6"
                 >
                   <div className="relative">
                     <div className="absolute inset-0 bg-blue-600/20 blur-3xl rounded-full" />
-                    <div className="relative w-28 h-28 rounded-[2.5rem] bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-2xl shadow-blue-600/30">
-                      <Zap size={50} className="text-white" />
+                    <div className="relative w-20 h-20 md:w-28 md:h-28 rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-2xl shadow-blue-600/30">
+                      <Zap size={32} className="md:size-[50px] text-white" />
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Desenhe sua Automação</h3>
-                    <p className="text-slate-500 text-xl font-medium leading-relaxed max-w-lg mx-auto">
-                      Selecione um passo na lateral para configurar ou use os botões de componentes para expandir seu fluxo.
+                  <div className="space-y-3 md:space-y-4">
+                    <h3 className="text-2xl md:text-4xl font-black text-white tracking-tight">Desenhe sua Automação</h3>
+                    <p className="text-slate-500 text-base md:text-xl font-medium leading-relaxed max-w-lg mx-auto">
+                      Selecione um passo na lateral para configurar ou adicione novos componentes para expandir seu fluxo.
                     </p>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full pt-10">
-                    <div className="p-8 rounded-[3rem] bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 text-left shadow-sm hover:border-blue-500/50 transition-all hover:shadow-xl hover:shadow-blue-500/5 group">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Sparkles size={24} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full pt-6 md:pt-10">
+                    <div className="p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] bg-slate-900 border border-slate-800 text-left shadow-2xl hover:border-blue-500/50 transition-all group">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                        <Sparkles size={22} />
                       </div>
-                      <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-2 text-lg">IA Nativa</h4>
-                      <p className="text-xs text-slate-500 leading-relaxed font-medium">Conecte n8n ou Dify para processar dados em tempo real e criar fluxos inteligentes.</p>
+                      <h4 className="font-bold text-slate-100 mb-1.5 md:mb-2 text-base md:text-lg">IA Nativa</h4>
+                      <p className="text-[10px] md:text-xs text-slate-500 leading-relaxed font-black">Conecte Dify ou n8n para processar dados e criar fluxos inteligentes.</p>
                     </div>
-                    <div className="p-8 rounded-[3rem] bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 text-left shadow-sm hover:border-emerald-500/50 transition-all hover:shadow-xl hover:shadow-emerald-500/5 group">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Smartphone size={24} />
+                    <div className="p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] bg-slate-900 border border-slate-800 text-left shadow-2xl hover:border-emerald-500/50 transition-all group">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                        <Smartphone size={22} />
                       </div>
-                      <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-2 text-lg">Omnichannel</h4>
-                      <p className="text-xs text-slate-500 leading-relaxed font-medium">Um único fluxo para todas as suas instâncias, mantendo a consistência no atendimento.</p>
+                      <h4 className="font-bold text-slate-100 mb-1.5 md:mb-2 text-base md:text-lg">Omnichannel</h4>
+                      <p className="text-[10px] md:text-xs text-slate-500 leading-relaxed font-black">Um único fluxo para todas as suas instâncias de WhatsApp.</p>
                     </div>
                   </div>
                 </motion.div>
@@ -244,6 +253,7 @@ export default function FlowEditorPage() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         flow={flow}
+        departments={departments}
         onUpdate={(data) => setFlow({ ...flow, ...data })}
       />
     </div>

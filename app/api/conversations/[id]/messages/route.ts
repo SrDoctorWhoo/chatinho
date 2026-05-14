@@ -28,11 +28,18 @@ export async function GET(
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
+    const scope = searchParams.get('scope') || 'ticket'; // 'ticket' ou 'all'
+    const contactIdParam = searchParams.get('contactId');
+
     const messages = await prisma.message.findMany({
       where: { 
-        conversation: {
-          contactId: conversation.contactId
-        }
+        ...(scope === 'all' ? {
+          conversation: {
+            contactId: contactIdParam || conversation.contactId
+          }
+        } : {
+          conversationId: id
+        })
       },
       include: {
         conversation: {

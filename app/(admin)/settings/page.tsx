@@ -48,10 +48,16 @@ export default function SettingsPage() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingDept, setIsAddingDept] = useState(false);
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
   const [isAddingInteg, setIsAddingInteg] = useState(false);
   const [editingIntegId, setEditingIntegId] = useState<string | null>(null);
-  const [newDept, setNewDept] = useState({ name: '', description: '' });
-  const [integForm, setIntegForm] = useState({ name: '', type: 'DIFY', method: 'POST', apiKey: '', baseUrl: '', isActive: true });
+  const [newDept, setNewDept] = useState({ 
+    name: '', 
+    description: '',
+    idleTimeout: '',
+    idleCloseMessage: ''
+  });
+  const [integForm, setIntegForm] = useState({ name: '', type: 'DIFY', method: 'POST', apiKey: '', baseUrl: '', config: '', isActive: true });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
@@ -197,20 +203,43 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch('/api/departments', {
-        method: 'POST',
+      const url = editingDeptId ? `/api/departments/${editingDeptId}` : '/api/departments';
+      const method = editingDeptId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDept)
       });
+
       if (res.ok) {
         setIsAddingDept(false);
-        setNewDept({ name: '', description: '' });
+        setEditingDeptId(null);
+        setNewDept({ name: '', description: '', idleTimeout: '', idleCloseMessage: '' });
         fetchDepartments();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao salvar setor');
       }
     } catch (err) {
-      console.error('Failed to add department:', err);
+      console.error('Failed to save department:', err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este setor?')) return;
+    try {
+      const res = await fetch(`/api/departments/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        fetchDepartments();
+      } else {
+        alert(data.error || 'Erro ao excluir setor');
+      }
+    } catch (err) {
+      console.error('Failed to delete department:', err);
     }
   };
 
@@ -480,14 +509,67 @@ export default function SettingsPage() {
               </div>
 
               {isAddingDept && (
-                <form onSubmit={handleAddDepartment} className="bg-white/5 border border-white/10 rounded-[2rem] p-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input required placeholder="Nome do Setor" value={newDept.name} onChange={(e) => setNewDept({...newDept, name: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none" />
-                    <input placeholder="Descrição" value={newDept.description} onChange={(e) => setNewDept({...newDept, description: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none" />
+                <form onSubmit={handleAddDepartment} className="bg-white/5 border border-white/10 rounded-[2rem] p-8 space-y-6 animate-in zoom-in-95">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Nome do Setor</label>
+                      <input 
+                        required 
+                        placeholder="Ex: Suporte Técnico" 
+                        value={newDept.name} 
+                        onChange={(e) => setNewDept({...newDept, name: e.target.value})} 
+                        className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Descrição curta</label>
+                      <input 
+                        placeholder="Ex: Atendimento de nível 1" 
+                        value={newDept.description} 
+                        onChange={(e) => setNewDept({...newDept, description: e.target.value})} 
+                        className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20" 
+                      />
+                    </div>
                   </div>
-                  <div className="flex justify-end gap-3">
-                    <button type="button" onClick={() => setIsAddingDept(false)} className="px-6 py-3 text-slate-500 font-bold text-sm">Cancelar</button>
-                    <button type="submit" className="px-8 py-3 bg-emerald-500 text-slate-950 rounded-xl font-black text-sm transition-all shadow-lg shadow-emerald-500/20">Salvar Setor</button>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-white/5">
+                    <div className="md:col-span-1 space-y-2">
+                      <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest ml-4">Tempo de Ociosidade (Min)</label>
+                      <input 
+                        type="number"
+                        placeholder="Ex: 60" 
+                        value={newDept.idleTimeout} 
+                        onChange={(e) => setNewDept({...newDept, idleTimeout: e.target.value})} 
+                        className="w-full px-6 py-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl text-white outline-none focus:ring-2 focus:ring-amber-500/20" 
+                      />
+                      <p className="text-[9px] text-slate-500 ml-4">Deixe vazio para desativar.</p>
+                    </div>
+                    <div className="md:col-span-3 space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Mensagem de Encerramento Automático</label>
+                      <input 
+                        placeholder="Ex: Olá! Por falta de interação, estamos encerrando este atendimento." 
+                        value={newDept.idleCloseMessage} 
+                        onChange={(e) => setNewDept({...newDept, idleCloseMessage: e.target.value})} 
+                        className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-emerald-500/20" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setIsAddingDept(false);
+                        setEditingDeptId(null);
+                        setNewDept({ name: '', description: '', idleTimeout: '', idleCloseMessage: '' });
+                      }} 
+                      className="px-6 py-3 text-slate-500 font-bold text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={saving} className="px-8 py-3 bg-emerald-500 text-slate-950 rounded-xl font-black text-sm transition-all shadow-lg shadow-emerald-500/20">
+                      {saving ? 'Salvando...' : editingDeptId ? 'Atualizar Setor' : 'Criar Setor'}
+                    </button>
                   </div>
                 </form>
               )}
@@ -496,13 +578,44 @@ export default function SettingsPage() {
                 {departments.map((dept) => (
                   <div key={dept.id} className="group flex items-center justify-between p-6 bg-white/[0.03] border border-white/5 rounded-3xl hover:bg-white/[0.05] transition-all">
                     <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><Layers size={24} /></div>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                        <Layers size={24} />
+                      </div>
                       <div>
-                        <h3 className="text-lg font-bold text-white leading-tight">{dept.name}</h3>
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-lg font-bold text-white leading-tight">{dept.name}</h3>
+                          {dept.idleTimeout && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase border border-amber-500/20">
+                              <Clock size={10} /> {dept.idleTimeout}m
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-500 font-medium mt-1">{dept.description || 'Sem descrição'}</p>
                       </div>
                     </div>
-                    <button className="p-3 text-slate-600 hover:text-red-500 transition-all"><Trash2 size={20} /></button>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setNewDept({
+                            name: dept.name,
+                            description: dept.description || '',
+                            idleTimeout: dept.idleTimeout?.toString() || '',
+                            idleCloseMessage: dept.idleCloseMessage || ''
+                          });
+                          setEditingDeptId(dept.id);
+                          setIsAddingDept(true);
+                        }}
+                        className="p-3 text-slate-400 hover:text-white transition-all"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteDepartment(dept.id)}
+                        className="p-3 text-slate-600 hover:text-red-500 transition-all"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -655,7 +768,7 @@ export default function SettingsPage() {
                 </div>
                 <button 
                   onClick={() => {
-                    setIntegForm({ name: '', type: 'DIFY', method: 'POST', apiKey: '', baseUrl: '', isActive: true });
+                    setIntegForm({ name: '', type: 'DIFY', method: 'POST', apiKey: '', baseUrl: '', config: '', isActive: true });
                     setEditingIntegId(null);
                     setTestResult(null);
                     setIsAddingInteg(true);
@@ -677,12 +790,32 @@ export default function SettingsPage() {
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Tipo de Serviço</label>
                       <select value={integForm.type} onChange={(e) => setIntegForm({...integForm, type: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20">
                         <option value="DIFY">Dify.ai</option>
+                        <option value="OAB_GO_AUTH">OAB-GO (Autenticação Externa)</option>
                         <option value="OPENAI">OpenAI (ChatGPT)</option>
                         <option value="ANTHROPIC">Anthropic (Claude)</option>
                         <option value="WEBHOOK">Custom Webhook</option>
                       </select>
                     </div>
                   </div>
+
+                  {integForm.type === 'OAB_GO_AUTH' && (
+                    <div className="p-6 bg-blue-500/5 border border-blue-500/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4">
+                      <div className="flex items-center gap-3">
+                        <ShieldCheck className="text-blue-500" size={20} />
+                        <h4 className="text-sm font-bold text-white">Configuração OAB-GO</h4>
+                      </div>
+                      <p className="text-xs text-slate-500">Esta integração requer as credenciais do sistema para obter o token inicial.</p>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Configuração JSON (systemUsername, systemPassword)</label>
+                        <textarea 
+                          placeholder='{ "systemUsername": "...", "systemPassword": "..." }'
+                          value={integForm.config}
+                          onChange={(e) => setIntegForm({...integForm, config: e.target.value})}
+                          className="w-full h-24 px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -745,6 +878,7 @@ export default function SettingsPage() {
                             method: integ.method || 'POST',
                             apiKey: integ.apiKey || '',
                             baseUrl: integ.baseUrl || '',
+                            config: integ.config || '',
                             isActive: integ.isActive
                           });
                           setEditingIntegId(integ.id);
@@ -765,7 +899,9 @@ export default function SettingsPage() {
 
                     <div className="space-y-6">
                       <div className="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-all duration-500">
-                        {integ.type === 'DIFY' ? <Sparkles size={32} /> : <Cpu size={32} />}
+                        {integ.type === 'DIFY' ? <Sparkles size={32} /> : 
+                         integ.type === 'OAB_GO_AUTH' ? <ShieldCheck size={32} /> : 
+                         <Cpu size={32} />}
                       </div>
                       
                       <div>
@@ -777,7 +913,9 @@ export default function SettingsPage() {
                             <span className="w-2 h-2 rounded-full bg-slate-600" />
                           )}
                         </div>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{integ.type}</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                          {integ.type === 'OAB_GO_AUTH' ? 'OAB-GO (AUTENTICAÇÃO)' : integ.type}
+                        </p>
                       </div>
 
                       <div className="pt-4 border-t border-white/5 space-y-4">
@@ -795,6 +933,7 @@ export default function SettingsPage() {
                             method: integ.method || 'POST',
                             apiKey: integ.apiKey || '',
                             baseUrl: integ.baseUrl || '',
+                            config: integ.config || '',
                             isActive: integ.isActive
                           });
                           setEditingIntegId(integ.id);

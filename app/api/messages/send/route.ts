@@ -56,7 +56,7 @@ export async function POST(req: Request) {
       });
 
       try {
-        await fetch(process.env.SOCKET_URL || 'http://127.0.0.1:3005/notify', {
+        await fetch(process.env.SOCKET_URL || 'http://localhost:3000/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -129,6 +129,8 @@ export async function POST(req: Request) {
       data: updateData
     });
 
+
+
     // Fetch fresh conversation state
     const freshConversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
@@ -137,7 +139,10 @@ export async function POST(req: Request) {
 
     // Notify Socket.io server for real-time updates
     try {
-      await fetch(process.env.SOCKET_URL || 'http://127.0.0.1:3005/notify', {
+      const socketUrl = process.env.SOCKET_URL || 'http://127.0.0.1:3000';
+      const notifyUrl = `${socketUrl.replace(/\/$/, '')}/api/internal/notify-socket`;
+      
+      await fetch(notifyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

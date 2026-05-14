@@ -57,7 +57,7 @@ async function syncInstancesStatus() {
           const dbStatus = (state === 'open' || state === 'CONNECTED' || state === 'online') ? 'CONNECTED' : 'DISCONNECTED';
           
           if (dbStatus === 'CONNECTED') {
-            console.log(`[WhatsApp Server] Instância ${instance.name} online. Atualizando Webhook...`);
+            console.log(`[WhatsApp Server] Instância ${instance.name} online. Atualizando Webhook para a rota correta...`);
             const result = await whatsappService.setWebhook(instance.instanceId);
             if (result) {
               console.log(`[WhatsApp Server] Webhook configurado com sucesso para ${instance.instanceId}`);
@@ -134,4 +134,3 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
-

@@ -34,33 +34,33 @@ export default function NextStepSelector({
   };
 
   return (
-    <div className="space-y-3">
-      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">
+    <div className="space-y-2">
+      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">
         {label}
       </label>
       <div className="relative group">
         <select 
-          className="w-full appearance-none p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium pr-12"
+          className="w-full appearance-none p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-blue-400 pr-10 shadow-inner"
           value={value}
           onChange={(e) => handleChange(e.target.value)}
         >
           <option value="">{emptyLabel}</option>
-          <optgroup label="Passos deste Fluxo">
-            {nodes.filter((n: any) => n.id !== currentNodeId).map((n: any) => {
+          <optgroup label="✨ Passos deste Fluxo">
+            {nodes.filter((n: any) => n.id !== currentNodeId).map((n: any, idx: number) => {
               const stepIdx = nodes.findIndex((orig: any) => orig.id === n.id) + 1;
               return (
-                <option key={n.id} value={n.id}>Passo {stepIdx}: {n.content?.substring(0, 30) || '(Sem texto)'}...</option>
+                <option key={n.id} value={n.id}>#{stepIdx} [{n.type}] {n.title || n.content?.substring(0, 20) || '(Sem texto)'}...</option>
               );
             })}
           </optgroup>
-          <optgroup label="Acionar outro Fluxo">
+          <optgroup label="🚀 Acionar outro Fluxo">
             {allFlows.map((f: any) => (
-              <option key={f.id} value={`flow-${f.id}`}>🚀 Ir para: {f.name}</option>
+              <option key={f.id} value={`flow-${f.id}`}>{f.name}</option>
             ))}
           </optgroup>
         </select>
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-          <ArrowRight size={16} className="group-focus-within:translate-x-1 transition-transform" />
+        <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover:text-blue-500 transition-all">
+          <ArrowRight size={18} className="group-focus-within:translate-x-1 transition-transform" />
         </div>
       </div>
     </div>

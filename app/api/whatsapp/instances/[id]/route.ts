@@ -16,7 +16,17 @@ export async function PATCH(
   const body = await req.json();
 
   try {
-    const instance = await prisma.whatsappInstance.findUnique({ where: { id } });
+    let instance = await prisma.whatsappInstance.findUnique({ where: { id } });
+    let isWidget = false;
+
+    if (!instance) {
+      const widget = await prisma.widgetInstance.findUnique({ where: { id } });
+      if (widget) {
+        instance = { ...widget, integration: 'WIDGET', instanceId: widget.id } as any;
+        isWidget = true;
+      }
+    }
+
     if (!instance) return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
 
     const updateData: Record<string, unknown> = {};
@@ -55,6 +65,25 @@ export async function PATCH(
       updateData.number = botIdentity.username ? `@${botIdentity.username}` : String(botIdentity.id);
     }
 
+    if (isWidget) {
+      const updatedWidget = await prisma.widgetInstance.update({
+        where: { id },
+        data: {
+          isActive: updateData.isActive as boolean | undefined,
+          departments: updateData.departments as any
+        },
+        include: {
+          departments: { select: { id: true, name: true } }
+        }
+      });
+      return NextResponse.json({
+        ...updatedWidget,
+        instanceId: updatedWidget.id,
+        integration: 'WIDGET',
+        status: updatedWidget.isActive ? 'CONNECTED' : 'DISCONNECTED'
+      });
+    }
+
     const updatedInstance = await prisma.whatsappInstance.update({
       where: { id },
       data: updateData,
@@ -86,26 +115,37 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const instance = await prisma.whatsappInstance.findUnique({
-      where: { id },
-    });
+    let instance = await prisma.whatsappInstance.findUnique({ where: { id } });
+    let isWidget = false;
+
+    if (!instance) {
+      const widget = await prisma.widgetInstance.findUnique({ where: { id } });
+      if (widget) {
+        instance = { ...widget, integration: 'WIDGET', instanceId: widget.id } as any;
+        isWidget = true;
+      }
+    }
 
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    if (instance.integration === 'TELEGRAM') {
-      if (instance.token) {
-        await telegramService.deleteWebhook(instance.token);
-      }
+    if (isWidget) {
+      await prisma.widgetInstance.delete({ where: { id } });
     } else {
-      console.log(`[Evolution] Deletando instancia "${instance.instanceId}"...`);
-      await whatsappService.deleteInstance(instance.instanceId);
-    }
+      if (instance.integration === 'TELEGRAM') {
+        if (instance.token) {
+          await telegramService.deleteWebhook(instance.token);
+        }
+      } else {
+        console.log(`[Evolution] Deletando instancia "${instance.instanceId}"...`);
+        await whatsappService.deleteInstance(instance.instanceId);
+      }
 
-    await prisma.whatsappInstance.delete({
-      where: { id },
-    });
+      await prisma.whatsappInstance.delete({
+        where: { id },
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

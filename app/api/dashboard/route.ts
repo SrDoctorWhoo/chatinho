@@ -93,12 +93,16 @@ export async function GET(req: Request) {
       })
     ]);
 
-    // 2. Recent Activity (Last 25 messages)
+    // 2. Recent Activity (Last 10 messages from last 30 days for speed)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const recentActivity = await prisma.message.findMany({
       where: {
-        conversation: departmentFilter
+        conversation: departmentFilter,
+        timestamp: { gte: thirtyDaysAgo }
       },
-      take: 25,
+      take: 10,
       orderBy: { timestamp: 'desc' },
       include: {
         conversation: {
@@ -115,7 +119,7 @@ export async function GET(req: Request) {
         status: 'QUEUED',
         ...departmentFilter
       },
-      take: 15,
+      take: 10,
       orderBy: { lastMessageAt: 'asc' },
       include: {
         contact: true,

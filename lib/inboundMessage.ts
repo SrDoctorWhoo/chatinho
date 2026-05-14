@@ -1,49 +1,8 @@
 import { prisma } from './prisma';
+import { notifySocket } from './socket';
 
 type IncomingPlatform = 'WHATSAPP' | 'TELEGRAM';
 type IncomingMessageType = 'chat' | 'image' | 'audio' | 'video' | 'document';
-
-async function notifySocket(messageId: string) {
-  try {
-    const enrichedMessage = await prisma.message.findUnique({
-      where: { id: messageId },
-      include: {
-        conversation: {
-          include: {
-            contact: true,
-            department: true,
-            assignedTo: { select: { id: true, name: true } },
-          },
-        },
-      },
-    });
-
-    if (!enrichedMessage) {
-      return;
-    }
-
-    const res = await fetch(process.env.SOCKET_URL || 'http://127.0.0.1:3005/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event: 'new_message',
-        data: {
-          message: enrichedMessage,
-          conversationId: enrichedMessage.conversationId,
-          conversation: enrichedMessage.conversation,
-        },
-      }),
-    });
-
-    if (res.ok) {
-      console.log(`[SocketNotify] Notificado com sucesso: ${messageId}`);
-    } else {
-      console.error(`[SocketNotify] Falha ao notificar: ${res.status}`);
-    }
-  } catch (err) {
-    console.error('[SocketNotify] Erro ao conectar no servidor de socket:', err);
-  }
-}
 
 function getContactNumber(platform: IncomingPlatform, remoteJid: string) {
   if (platform === 'TELEGRAM') {

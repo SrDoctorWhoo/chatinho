@@ -21,7 +21,8 @@ import {
   ListTodo,
   Calendar,
   Trash2,
-  Download
+  Download,
+  Play
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
@@ -177,6 +178,22 @@ export default function PlannerPage() {
     setUpdatingId(id);
     try {
       const res = await fetch(`/api/conversations/${id}/close`, { method: 'POST' });
+      if (res.ok) fetchPlannerData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdatingId(null);
+      setActiveMenu(null);
+    }
+  };
+
+  const handleReopen = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Deseja reabrir este atendimento?')) return;
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/conversations/${id}/reopen`, { method: 'POST' });
+      if (res.ok) fetchPlannerData();
     } catch (err) {
       console.error(err);
     } finally {
@@ -317,103 +334,112 @@ export default function PlannerPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#020617]">
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
-        <div className="max-w-[1800px] mx-auto w-full space-y-8">
+    <div className="h-screen flex flex-col bg-[#020617] overflow-hidden">
+      {/* Top Bar Area - Fixed */}
+      <div className="p-4 md:p-8 pb-0">
+        <div className="max-w-[1800px] mx-auto w-full">
           <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div>
-              <div className="flex items-center gap-2 mb-2 text-emerald-500 font-bold text-[10px] uppercase tracking-[0.3em]">
+              <div className="flex items-center gap-2 mb-4 text-emerald-500 font-bold text-[10px] uppercase tracking-[0.3em]">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <Layout size={12} />
                 <span>Workflow em Tempo Real</span>
               </div>
               <h1 className="text-4xl font-black text-white tracking-tight">Planner</h1>
-              <p className="text-slate-500 mt-1 font-medium text-sm">Gerencie o fluxo de atendimento da sua equipe.</p>
+              <p className="text-slate-400 mt-2 font-medium text-sm">Gerencie o fluxo de atendimento da sua equipe.</p>
             </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="relative w-full sm:w-64 group">
+              <div className="flex flex-col sm:flex-row items-center gap-5">
+              <div className="relative w-full sm:w-72 group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-emerald-500 transition-colors" size={16} />
                 <input 
                   type="text"
-                  placeholder="Buscar..."
+                  placeholder="Buscar protocolo, nome ou tarefa..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-white/[0.02] border border-white/5 rounded-2xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white/[0.04] transition-all"
+                  className="w-full h-12 bg-white/[0.04] border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white/[0.06] transition-all"
                 />
               </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto bg-white/[0.02] border border-white/5 rounded-2xl px-4 py-1.5">
-                <Filter size={14} className="text-slate-500" />
+ 
+              <div className="flex items-center gap-3 w-full sm:w-auto h-12 bg-white/[0.04] border border-white/10 rounded-2xl px-4">
+                <Filter size={14} className="text-slate-400" />
                 <select 
                   value={selectedDept}
                   onChange={(e) => setSelectedDept(e.target.value)}
-                  className="bg-transparent border-none py-1.5 text-xs font-bold text-slate-300 focus:outline-none cursor-pointer sm:min-w-[120px]"
+                  className="bg-transparent border-none py-1.5 text-xs font-bold text-slate-200 focus:outline-none cursor-pointer sm:min-w-[130px]"
                 >
-                  <option value="all" className="bg-[#0f172a]">Setores</option>
+                  <option value="all" className="bg-[#0f172a]">Todos Setores</option>
                   {availableDepts.map((dept) => (
                     <option key={dept.id} value={dept.id} className="bg-[#0f172a]">{dept.name}</option>
                   ))}
                 </select>
               </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto bg-white/[0.02] border border-white/5 rounded-2xl px-4 py-1.5">
-                <User size={14} className="text-slate-500" />
+ 
+              <div className="flex items-center gap-3 w-full sm:w-auto h-12 bg-white/[0.04] border border-white/10 rounded-2xl px-4">
+                <User size={14} className="text-slate-400" />
                 <select 
                   value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
-                  className="bg-transparent border-none py-1.5 text-xs font-bold text-slate-300 focus:outline-none cursor-pointer sm:min-w-[120px]"
+                  className="bg-transparent border-none py-1.5 text-xs font-bold text-slate-200 focus:outline-none cursor-pointer sm:min-w-[130px]"
                 >
-                  <option value="all" className="bg-[#0f172a]">Membros</option>
-                  <option value="me" className="bg-[#0f172a]">Meus Itens</option>
+                  <option value="all" className="bg-[#0f172a]">Todos Membros</option>
+                  <option value="me" className="bg-[#0f172a]">Atribuídos a mim</option>
                   {availableUsers.map((user) => (
                     <option key={user.id} value={user.id} className="bg-[#0f172a]">{user.name}</option>
                   ))}
                 </select>
               </div>
-
-              <div className="flex items-center gap-2">
+ 
+              <div className="flex items-center gap-4 ml-auto">
                 <button
                   onClick={exportToCSV}
                   disabled={exporting}
-                  className="flex items-center justify-center p-3 bg-white/5 text-slate-300 rounded-2xl hover:bg-white/10 transition-all border border-white/5 disabled:opacity-50"
+                  className="flex items-center justify-center h-12 w-12 bg-white/5 text-slate-300 rounded-2xl hover:bg-white/10 transition-all border border-white/10 disabled:opacity-50"
                   title="Exportar Relatório"
                 >
-                  <Download size={18} className={exporting ? 'animate-bounce' : ''} />
+                  <Download size={20} className={exporting ? 'animate-bounce' : ''} />
                 </button>
-
+ 
                 <button
                   onClick={() => setShowNewTask(true)}
-                  className="flex items-center gap-2 px-5 py-3 bg-emerald-500 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+                  className="flex items-center gap-2 h-12 px-6 bg-emerald-500 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                 >
-                  <Plus size={16} />
-                  Tarefa
+                  <Plus size={18} />
+                  NOVA TAREFA
                 </button>
               </div>
             </div>
           </header>
+        </div>
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start pb-10">
+      {/* Kanban Area - Scrollable Columns */}
+      <div className="flex-1 min-h-0 overflow-hidden p-4 md:p-8 pt-4">
+        <div className="max-w-[1800px] mx-auto h-full min-h-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full items-stretch pb-4 min-h-0">
             {columns.map((col) => (
-              <div key={col.id} className="flex flex-col min-w-0">
-                <div className="flex items-center justify-between mb-6 px-2">
+              <div key={col.id} className="flex flex-col min-w-0 h-full min-h-0 group/column">
+                <div className="flex items-center justify-between mb-4 px-2 py-3 border-b border-white/5 bg-white/[0.01] rounded-t-3xl">
                   <div className="flex items-center gap-3">
-                    <div className={cn("p-2.5 rounded-2xl shadow-lg", col.bg, col.color)}>
+                    <div className={cn("p-2.5 rounded-xl shadow-lg", col.bg, col.color)}>
                       <col.icon size={20} />
                     </div>
                     <div>
-                      <h2 className="font-bold text-white text-sm">{col.title}</h2>
-                      <p className="text-[10px] text-slate-500 font-medium">{filteredData(col.id).length} itens</p>
+                      <h2 className="font-black text-white text-sm tracking-wide uppercase">{col.title}</h2>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{filteredData(col.id).length} itens</p>
                     </div>
                   </div>
                 </div>
 
                 <div className={cn(
-                  "flex-1 space-y-4 p-4 min-h-[650px] rounded-[2.5rem] border border-white/[0.03] bg-[#0f172a]/20 backdrop-blur-3xl shadow-2xl transition-all duration-500 group/column",
+                  "flex-1 relative flex flex-col min-h-0 rounded-b-[2.5rem] border-x border-b border-white/[0.03] bg-white/[0.01] backdrop-blur-3xl transition-all duration-500",
                   col.glow
                 )}>
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none rounded-[2.5rem]" />
-                  <AnimatePresence mode="popLayout" initial={false}>
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/[0.01] to-transparent pointer-events-none rounded-b-[2.5rem]" />
+                  
+                  {/* Scrollable Container for Cards */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+                    <AnimatePresence mode="popLayout" initial={false}>
                     {filteredData(col.id).map((item: any) => (
                       item.itemType === 'TASK' ? (
                         /* ========= TASK CARD ========= */
@@ -425,27 +451,27 @@ export default function PlannerPage() {
                           exit={{ opacity: 0, scale: 0.8 }}
                           whileHover={{ y: -5, scale: 1.02 }}
                           className={cn(
-                            "group relative p-5 rounded-3xl border border-white/5 bg-[#0f172a]/60 backdrop-blur-xl hover:bg-white/[0.04] transition-all cursor-pointer shadow-xl hover:shadow-blue-500/5",
+                            "group relative p-7 rounded-3xl border border-white/10 bg-slate-900/50 backdrop-blur-xl hover:bg-slate-800/80 transition-all cursor-pointer shadow-2xl hover:shadow-blue-500/20",
                             updatingId === item.id && "opacity-50 pointer-events-none scale-95",
                             activeMenu === item.id ? "overflow-visible z-[50]" : "overflow-hidden z-[1]"
                           )}
                           onClick={() => router.push(`/conversations?id=${item.id}`)}
                         >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-900 to-blue-950 border border-blue-500/20 flex items-center justify-center shadow-xl">
-                                <ListTodo size={18} className="text-blue-400" />
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-900/50 to-blue-950/50 border border-blue-500/30 flex items-center justify-center shadow-inner">
+                                <ListTodo size={20} className="text-blue-400" />
                               </div>
                               <div className="min-w-0">
-                                <h3 className="text-sm font-bold text-white truncate group-hover:text-blue-400 transition-colors">
+                                <h3 className="text-sm font-black text-white truncate group-hover:text-blue-400 transition-colors">
                                   {item.title}
                                 </h3>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
                                     {item.department?.name || 'Sem setor'}
                                   </span>
-                                  <span className="w-1 h-1 rounded-full bg-slate-700" />
-                                  <span className="text-[10px] font-medium text-slate-500">
+                                  <span className="w-1 h-1 rounded-full bg-slate-600" />
+                                  <span className="text-[10px] font-bold text-slate-500">
                                     {formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true, locale: ptBR })}
                                   </span>
                                 </div>
@@ -459,7 +485,7 @@ export default function PlannerPage() {
                                   setActiveMenu(activeMenu === item.id ? null : item.id);
                                 }}
                                 className={cn(
-                                  "w-8 h-8 flex items-center justify-center rounded-xl transition-all",
+                                  "w-9 h-9 flex items-center justify-center rounded-xl transition-all",
                                   activeMenu === item.id ? "bg-blue-500 text-white" : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                                 )}
                               >
@@ -467,7 +493,7 @@ export default function PlannerPage() {
                               </button>
 
                               {activeMenu === item.id && (
-                                <div className="absolute right-0 top-10 w-48 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden py-1 animate-in">
+                                <div className="absolute right-0 top-11 w-48 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden py-1 animate-in">
                                   {col.id !== 'done' && (
                                     <button 
                                       onClick={(e) => handleCompleteTask(e, item.id)}
@@ -505,13 +531,13 @@ export default function PlannerPage() {
                           </div>
 
                           {item.description && (
-                            <div className="relative mb-3">
-                              <div className="absolute left-0 top-0 w-0.5 h-full bg-blue-500/30 rounded-full" />
-                              <p className="pl-4 text-xs text-slate-400 line-clamp-2 leading-relaxed italic">{item.description}</p>
+                            <div className="relative mb-4">
+                              <div className="absolute left-0 top-0 w-1 h-full bg-blue-500/40 rounded-full" />
+                              <p className="pl-4 text-xs text-slate-200 line-clamp-3 leading-relaxed font-medium">{item.description}</p>
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between pt-3 border-t border-white/[0.03]">
+                          <div className="flex items-center justify-between pt-4 border-t border-white/[0.03]">
                             <div className="flex items-center gap-2">
                               <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/10">
                                 <ListTodo size={10} />
@@ -525,11 +551,11 @@ export default function PlannerPage() {
                               )}
                             </div>
                             {item.assignedTo && (
-                              <div className="flex items-center gap-2 bg-white/5 pr-2.5 pl-1.5 py-1 rounded-full border border-white/5">
-                                <div className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center">
-                                  <User size={8} className="text-slate-400" />
+                              <div className="flex items-center gap-2 bg-white/5 pr-3 pl-1.5 py-1 rounded-full border border-white/10 group/user hover:bg-white/10 transition-colors">
+                                <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center border border-white/5">
+                                  <User size={10} className="text-slate-400" />
                                 </div>
-                                <span className="text-[9px] font-bold text-slate-400">{item.assignedTo.name}</span>
+                                <span className="text-[10px] font-black text-slate-300 group-hover/user:text-white transition-colors">{item.assignedTo.name}</span>
                               </div>
                             )}
                           </div>
@@ -548,15 +574,15 @@ export default function PlannerPage() {
                           whileHover={{ y: -5, scale: 1.02 }}
                           onClick={() => router.push(`/conversations?id=${item.id}`)}
                           className={cn(
-                            "group relative p-5 rounded-3xl border border-white/5 bg-[#0f172a]/60 backdrop-blur-xl hover:bg-white/[0.04] transition-all cursor-pointer shadow-xl hover:shadow-emerald-500/5",
+                            "group relative p-7 rounded-3xl border border-white/10 bg-slate-900/50 backdrop-blur-xl hover:bg-slate-800/80 transition-all cursor-pointer shadow-2xl hover:shadow-emerald-500/20",
                             updatingId === item.id && "opacity-50 pointer-events-none scale-95",
                             activeMenu === item.id ? "overflow-visible z-[50]" : "overflow-hidden z-[1]"
                           )}
                         >
                           <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex items-center gap-4 min-w-0">
                               <div className="relative shrink-0">
-                                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/5 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform duration-500 shadow-xl">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 flex items-center justify-center text-sm font-black text-emerald-400 group-hover:scale-110 transition-transform duration-500 shadow-xl">
                                   {item.contact?.name?.charAt(0).toUpperCase() || '?'}
                                 </div>
                                 <div className={cn(
@@ -565,15 +591,15 @@ export default function PlannerPage() {
                                 )} />
                               </div>
                               <div className="min-w-0">
-                                <h3 className="text-sm font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
+                                <h3 className="text-sm font-black text-white truncate group-hover:text-emerald-400 transition-colors">
                                   {item.contact?.name || item.contact?.number}
                                 </h3>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter truncate max-w-[100px]">
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter truncate max-w-[120px]">
                                     {item.department?.name || 'Geral'}
                                   </span>
-                                  <span className="w-1 h-1 rounded-full bg-slate-700" />
-                                  <span className="text-[10px] font-medium text-slate-500">
+                                  <span className="w-1 h-1 rounded-full bg-slate-600" />
+                                  <span className="text-[10px] font-bold text-slate-500">
                                     {formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true, locale: ptBR })}
                                   </span>
                                 </div>
@@ -587,7 +613,7 @@ export default function PlannerPage() {
                                   setActiveMenu(activeMenu === item.id ? null : item.id);
                                 }}
                                 className={cn(
-                                  "w-8 h-8 flex items-center justify-center rounded-xl transition-all",
+                                  "w-9 h-9 flex items-center justify-center rounded-xl transition-all",
                                   activeMenu === item.id ? "bg-emerald-500 text-white" : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                                 )}
                               >
@@ -595,7 +621,7 @@ export default function PlannerPage() {
                               </button>
 
                               {activeMenu === item.id && (
-                                <div className="absolute right-0 top-10 w-48 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden py-1 animate-in">
+                                <div className="absolute right-0 top-11 w-48 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden py-1 animate-in">
                                   {col.id === 'todo' && (
                                     <button 
                                       onClick={(e) => handleAccept(e, item.id)}
@@ -620,22 +646,32 @@ export default function PlannerPage() {
                                     Abrir Chat
                                   </button>
                                   <div className="h-px bg-white/5 my-1" />
-                                  <button 
-                                    onClick={(e) => handleClose(e, item.id)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors"
-                                  >
-                                    <XCircle size={14} />
-                                    Encerrar
-                                  </button>
+                                  {col.id === 'done' ? (
+                                    <button 
+                                      onClick={(e) => handleReopen(e, item.id)}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                                    >
+                                      <Play size={14} />
+                                      Reabrir Atendimento
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      onClick={(e) => handleClose(e, item.id)}
+                                      className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors"
+                                    >
+                                      <XCircle size={14} />
+                                      Encerrar
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className="relative">
-                            <div className="absolute left-0 top-0 w-0.5 h-full bg-emerald-500/30 rounded-full" />
+                          <div className="relative mb-2">
+                            <div className="absolute left-0 top-0 w-1 h-full bg-emerald-500/40 rounded-full" />
                             <div className="pl-4">
-                              <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed italic group-hover:text-slate-300 transition-colors">
+                              <p className="text-xs text-slate-200 line-clamp-3 leading-relaxed font-medium group-hover:text-white transition-colors">
                                 {item.messages?.[0]?.body || 'Sem histórico de mensagens...'}
                               </p>
                             </div>
@@ -653,9 +689,9 @@ export default function PlannerPage() {
                               )}
                             </div>
                             {item.assignedTo && (
-                              <div className="flex items-center gap-2 group/user bg-white/5 pr-2.5 pl-1.5 py-1 rounded-full border border-white/5">
-                                <div className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center"><User size={8} className="text-slate-400" /></div>
-                                <span className="text-[9px] font-bold text-slate-400 group-hover/user:text-white transition-colors">{item.assignedTo.name}</span>
+                              <div className="flex items-center gap-2 group/user bg-white/5 pr-3 pl-1.5 py-1 rounded-full border border-white/10 hover:bg-white/10 transition-colors">
+                                <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center border border-white/5"><User size={10} className="text-slate-400" /></div>
+                                <span className="text-[10px] font-black text-slate-300 group-hover/user:text-white transition-colors">{item.assignedTo.name}</span>
                               </div>
                             )}
                           </div>
@@ -663,22 +699,22 @@ export default function PlannerPage() {
                           <div className="absolute -inset-[100%] bg-gradient-to-r from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 blur-3xl pointer-events-none" />
                           <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
                         </motion.div>
-                      )
-                    ))}
+                    )))}
                   </AnimatePresence>
 
-                  {filteredData(col.id).length === 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex flex-col items-center justify-center py-20 text-slate-700 opacity-30 space-y-3"
-                    >
-                      <div className="p-6 rounded-full border-2 border-dashed border-slate-800">
-                        <col.icon size={32} strokeWidth={1} />
-                      </div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Sem itens</p>
-                    </motion.div>
-                  )}
+                    {filteredData(col.id).length === 0 && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex flex-col items-center justify-center py-20 text-slate-700 opacity-30 space-y-3"
+                      >
+                        <div className="p-6 rounded-full border-2 border-dashed border-slate-800">
+                          <col.icon size={32} strokeWidth={1} />
+                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Sem itens</p>
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

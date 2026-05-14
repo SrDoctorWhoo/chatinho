@@ -251,7 +251,8 @@ export const whatsappService = {
   async setWebhook(instanceId: string) {
     try {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || process.env.NEXTAUTH_URL;
-      const webhookUrl = `${baseUrl}/api/webhook/whatsapp`;
+      const webhookUrl = `${baseUrl}/api/webhook/whatsapp/notifications`;
+      console.log(`[Evolution] Webhook URL Final: ${webhookUrl}`);
       console.log(`[Evolution] Configurando webhook para ${instanceId} -> ${webhookUrl}`);
 
       const response = await evolution.post(`/webhook/set/${instanceId}`, {

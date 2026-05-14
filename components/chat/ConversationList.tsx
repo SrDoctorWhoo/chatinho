@@ -37,6 +37,7 @@ export const ConversationList = React.memo(function ConversationList({
   ], []);
 
   const filteredConversations = useMemo(() => {
+    console.log(`[Front] Re-renderizando lista com ${conversations.length} conversas`);
     const term = searchTerm.toLowerCase();
     return conversations.filter(conv => {
       const nameMatch = conv.contact?.name?.toLowerCase().includes(term);
@@ -53,40 +54,45 @@ export const ConversationList = React.memo(function ConversationList({
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-transparent">
-      {/* Header com Abas */}
+    <div className="h-full flex flex-col bg-transparent">      {/* Header com Filtros */}
       <div className="px-6 pt-8 pb-4">
-        <h2 className="text-2xl font-bold text-white mb-6 tracking-tight">Conversas</h2>
-        <div className="flex items-center gap-1 bg-white/5 p-1 rounded-2xl border border-white/5">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-white tracking-tight">Conversas</h2>
+          {conversations.filter(c => c.status === 'QUEUED').length > 0 && (
+            <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-1.5 animate-pulse">
+              <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+              <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider">
+                {conversations.filter(c => c.status === 'QUEUED').length} EM FILA
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Abas Estilo Chips */}
+        <div className="flex flex-wrap gap-2 mb-6">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id)}
               className={cn(
-                "flex-1 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all duration-300",
+                "px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all duration-300 border",
                 filter === tab.id 
-                  ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" 
-                  : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                  ? "bg-emerald-500 border-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" 
+                  : "bg-white/5 border-white/5 text-slate-500 hover:text-slate-300 hover:bg-white/10"
               )}
             >
               {tab.label}
-              {tab.id === 'QUEUED' && conversations.filter(c => c.status === 'QUEUED').length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 bg-red-500 text-white text-[9px] rounded-md font-black">
-                  {conversations.filter(c => c.status === 'QUEUED').length}
-                </span>
-              )}
             </button>
           ))}
         </div>
 
-        {/* Filtro de Setor para Gestores */}
+        {/* Filtro de Setor */}
         {showDeptFilter && (
-          <div className="mt-4">
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Filtrar por Setor</label>
+          <div className="mb-4">
             <select 
               value={selectedDepartment}
               onChange={(e) => onDepartmentChange?.(e.target.value)}
-              className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all cursor-pointer hover:bg-white/[0.08]"
+              className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-2.5 text-xs text-slate-300 outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all cursor-pointer hover:bg-white/[0.08]"
             >
               <option value="all" className="bg-slate-900">Todos os Setores</option>
               {departments.map((dept: any) => (
@@ -95,10 +101,8 @@ export const ConversationList = React.memo(function ConversationList({
             </select>
           </div>
         )}
-      </div>
 
-      {/* Search */}
-      <div className="px-6 py-2">
+        {/* Search */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-400 transition-colors">
             <Search size={18} />
@@ -107,13 +111,13 @@ export const ConversationList = React.memo(function ConversationList({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-11 pr-4 py-3 bg-white/5 border border-white/5 rounded-2xl text-sm text-white placeholder-slate-600 focus:ring-1 focus:ring-emerald-500/30 outline-none transition-all focus:bg-white/[0.08]"
-            placeholder="Buscar por nome ou número..."
+            className="block w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder-slate-600 focus:ring-1 focus:ring-emerald-500/30 outline-none transition-all focus:bg-white/[0.08]"
+            placeholder="Buscar por nome, telefone ou ticket"
           />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto mt-4 px-3 space-y-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto mt-2 px-3 space-y-1 custom-scrollbar">
         {filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-slate-600 px-8 text-center">
             <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center mb-4">
@@ -122,128 +126,113 @@ export const ConversationList = React.memo(function ConversationList({
             <p className="text-sm font-medium">Nenhuma conversa encontrada</p>
           </div>
         ) : (
-          filteredConversations.map((conv: any) => (
-            <button
-              key={conv.id}
-              onClick={() => onSelect(conv.id)}
-              className={cn(
-                "w-full flex items-center gap-4 px-4 py-4 rounded-[1.5rem] transition-all duration-300 cursor-pointer group mb-1",
-                activeId === conv.id 
-                  ? "bg-emerald-500/10 border border-emerald-500/10" 
-                  : "hover:bg-white/5 border border-transparent"
-              )}
-            >
-              <div className="relative">
-                <div className={cn(
-                  "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white overflow-hidden transition-all duration-500 relative shadow-inner",
-                  activeId === conv.id ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20" : "bg-slate-800"
-                )}>
-                  {conv.contact.profilePic ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={conv.contact.profilePic} alt={conv.contact.name || ''} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className={cn(
-                      "text-lg font-black tracking-tighter",
-                      activeId === conv.id ? "text-slate-950" : "text-emerald-500/80"
-                    )}>
-                      {(conv.contact.name || 'C').charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                {conv.status === 'QUEUED' && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full border-2 border-slate-900 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                  </div>
+          filteredConversations.map((conv: any) => {
+            const isQueued = conv.status === 'QUEUED';
+            const isActive = conv.status === 'ACTIVE';
+            const isBot = conv.isBotActive;
+            
+            return (
+              <button
+                key={conv.id}
+                onClick={() => onSelect(conv.id)}
+                className={cn(
+                  "w-full flex items-center gap-4 px-4 py-4 rounded-[1.5rem] transition-all duration-300 cursor-pointer group relative mb-1",
+                  activeId === conv.id 
+                    ? "bg-emerald-500/10 border border-emerald-500/20" 
+                    : "hover:bg-white/5 border border-transparent"
                 )}
-                {conv.status === 'ACTIVE' && (
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-lg shadow-emerald-500/40" />
-                )}
-              </div>
-              
-              <div className="flex-1 min-w-0 text-left">
-                <div className="flex items-start justify-between mb-1 gap-2">
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+              >
+                {/* Avatar Section */}
+                <div className="relative">
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white overflow-hidden transition-all duration-500 shadow-inner",
+                    activeId === conv.id ? "bg-gradient-to-br from-emerald-500/20 to-teal-600/20" : "bg-slate-800/50"
+                  )}>
+                    {conv.contact.profilePic ? (
+                      <img src={conv.contact.profilePic} alt={conv.contact.name || ''} className="w-full h-full object-cover" />
+                    ) : (
                       <span className={cn(
-                        "text-[15px] font-bold truncate transition-colors leading-tight",
-                        activeId === conv.id ? "text-emerald-400" : "text-slate-200 group-hover:text-white"
+                        "text-lg font-black tracking-tighter",
+                        activeId === conv.id ? "text-emerald-400" : "text-slate-500"
                       )}>
-                        {conv.contact.name || conv.contact.number}
+                        {(conv.contact.name || 'C').charAt(0).toUpperCase()}
                       </span>
-                      {conv.isBotActive && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md">
-                          <Bot size={10} className="text-amber-500" />
-                          <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter">Bot</span>
-                        </div>
-                      )}
-                      {conv.platform === 'TELEGRAM' && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md">
-                          <Send size={10} className="text-blue-400" />
-                          <span className="text-[8px] font-black text-blue-400 uppercase tracking-tighter text-[7px]">TG</span>
-                        </div>
-                      )}
-                    </div>
-                    {conv.contact.name && conv.contact.name !== conv.contact.number && (
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={cn(
-                          "text-[11px] font-medium truncate",
-                          activeId === conv.id ? "text-emerald-700" : "text-slate-500"
-                        )}>
-                          {conv.contact.number.includes('@lid') ? 'Device' : conv.contact.number}
-                        </span>
-                        {conv.contact.notes && (
-                          <span className="text-[10px] text-amber-500/80 font-bold bg-amber-500/5 px-1.5 rounded-sm border border-amber-500/10 truncate max-w-[100px]">
-                            {conv.contact.notes}
-                          </span>
-                        )}
-                      </div>
                     )}
-                  </div>                  <div className="flex flex-col items-end gap-1">
+                  </div>
+                  
+                  {/* Status Indicator Dot */}
+                  <div className={cn(
+                    "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-slate-950 shadow-sm",
+                    isQueued ? "bg-amber-500 animate-pulse" : 
+                    isActive ? "bg-emerald-500" : 
+                    isBot ? "bg-sky-500" : "bg-slate-500"
+                  )} />
+                </div>
+                
+                {/* Info Section */}
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center justify-between mb-1">
                     <span className={cn(
-                      "text-[10px] font-bold uppercase tracking-tighter transition-all duration-700",
+                      "text-[15px] font-bold truncate leading-tight transition-colors",
+                      activeId === conv.id ? "text-emerald-400" : "text-slate-200 group-hover:text-white"
+                    )}>
+                      {conv.contact.name || conv.contact.number}
+                    </span>
+                    <span className={cn(
+                      "text-[10px] font-medium transition-all duration-700",
                       activeId === conv.id ? "text-emerald-400" : "text-slate-500",
-                      // Brilha se a mensagem for recente (último minuto)
-                      conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) ? "text-emerald-400 font-black scale-105" : ""
+                      conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) ? "text-emerald-400 animate-pulse" : ""
                     )}>
                       {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
-                    {conv.status === 'QUEUED' && (
-                      <span className="px-2 py-0.5 bg-red-500/10 text-red-500 text-[8px] font-black uppercase rounded-md border border-red-500/20 animate-pulse">
-                        Fila
-                      </span>
-                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {/* Canal Badge */}
+                    <div className={cn(
+                      "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter border",
+                      conv.platform === 'TELEGRAM' 
+                        ? "bg-blue-500/5 border-blue-500/20 text-blue-400" 
+                        : "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
+                    )}>
+                      {conv.platform === 'TELEGRAM' ? <Send size={8} /> : <MessageSquare size={8} />}
+                      {conv.platform || 'WHATSAPP'}
+                    </div>
+
+                    {/* Setor Badge */}
                     {conv.department && (
-                      <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase rounded-md border border-blue-500/20">
+                      <div className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded-md text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
                         {conv.department.name}
-                      </span>
+                      </div>
+                    )}
+
+                    {/* Bot Badge */}
+                    {isBot && (
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-sky-500/10 border border-sky-500/20 rounded-md text-[8px] font-black text-sky-500 uppercase tracking-tighter">
+                        <Bot size={8} /> Bot
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Last Message */}
+                  <div className="flex items-center gap-2">
+                    <p className={cn(
+                      "text-[13px] truncate flex-1 font-medium transition-colors",
+                      isQueued ? "text-amber-500/80" : "text-slate-500 group-hover:text-slate-400",
+                      conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) ? "text-slate-200" : ""
+                    )}>
+                      {conv.lastMessage || conv.messages?.[0]?.body || (isQueued ? 'Aguardando atendimento...' : 'Inicie uma conversa')}
+                    </p>
+                    
+                    {/* Unread Glowing Dot */}
+                    {conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) && activeId !== conv.id && (
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <p className={cn(
-                    "text-[13px] truncate flex-1 font-medium transition-all duration-700",
-                    conv.status === 'QUEUED' ? "text-red-400/80" : conv.isBotActive ? "text-amber-400/60" : "text-slate-500 group-hover:text-slate-400",
-                    // Se a mensagem for nova, destaca
-                    conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) ? "text-slate-100 font-semibold" : ""
-                  )}>
-                    {conv.messages?.[0]?.body || (conv.status === 'QUEUED' ? 'Aguardando atendimento...' : 'Inicie uma conversa')}
-                  </p>
-                  {/* Ponto de notificação para novas mensagens em conversas não ativas */}
-                  {conv.lastMessageAt && (now - new Date(conv.lastMessageAt).getTime() < 60000) && activeId !== conv.id && (
-                    <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse flex-shrink-0" />
-                  )}
-
-                  {conv.assignedTo && filter !== 'mine' && (
-                    <div className="h-5 px-2 rounded-md bg-white/5 border border-white/5 flex items-center">
-                      <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">
-                        {conv.assignedTo.name.split(' ')[0]}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </button>
-          ))
+              </button>
+            );
+          })
         )}
       </div>
     </div>

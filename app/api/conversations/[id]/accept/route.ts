@@ -60,7 +60,7 @@ export async function POST(
 
     // Notify via Socket
     try {
-      await fetch('http://127.0.0.1:3005/notify', {
+      await fetch(process.env.SOCKET_URL || 'http://localhost:3000/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

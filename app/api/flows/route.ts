@@ -21,12 +21,13 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { name, description, instanceIds } = await req.json();
+    const { name, description, instanceIds, triggerDepartmentId } = await req.json();
 
     const flow = await prisma.chatbotFlow.create({
       data: {
         name,
         description,
+        triggerDepartmentId: triggerDepartmentId || null,
         instances: instanceIds?.length ? {
           connect: instanceIds.map((id: string) => ({ id }))
         } : undefined

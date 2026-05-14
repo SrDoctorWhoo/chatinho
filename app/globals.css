@@ -1,95 +1,70 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #10b981;
-  --primary-glow: rgba(16, 185, 129, 0.3);
-  --secondary: #64748b;
-  --accent: #06b6d4;
-  --card: rgba(255, 255, 255, 0.4);
-  --border: rgba(255, 255, 255, 0.5);
-  --selection: rgba(16, 185, 129, 0.4);
+@theme {
+  --color-background: #020617;
+  --color-foreground: #f8fafc;
+  --color-card: #0f172a;
+  --color-primary: #10b981;
+  --color-secondary: #1e293b;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-accent: #1e293b;
+  --color-destructive: #ef4444;
+  --color-border: #1e293b;
 }
 
-::selection {
-  background: var(--selection);
-  color: #fff;
+@layer base {
+  * {
+    @apply border-slate-800 outline-none;
+  }
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Custom Scrollbar Elite Global */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  }
 }
 
-.dark {
-  --background: #02040a;
-  --foreground: #f8fafc;
-  --primary: #10b981;
-  --primary-glow: rgba(16, 185, 129, 0.15);
-  --secondary: #64748b;
-  --accent: #2dd4bf;
-  --card: rgba(15, 23, 42, 0.2);
-  --border: rgba(255, 255, 255, 0.05);
-  --selection: rgba(16, 185, 129, 0.1);
-}
+@layer components {
+  .glass-panel {
+    @apply bg-slate-900/60 backdrop-blur-xl border border-white/5 shadow-2xl;
+  }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-plus-jakarta), sans-serif;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
+  .premium-card {
+    @apply relative overflow-hidden transition-all duration-500 hover:scale-[1.01] hover:bg-white/[0.04];
+  }
 
-/* Premium Glassmorphism */
-.glass-panel {
-  background: var(--card);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
-}
+  .elite-border {
+    @apply border border-white/10 shadow-[0_0_1px_rgba(255,255,255,0.1)];
+  }
 
-.premium-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.premium-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgba(255, 255, 255, 0.05),
-    transparent
-  );
-  transform: skewX(-25deg);
-  transition: 0.75s;
-}
-
-
-
-.premium-card:hover::before {
-  left: 150%;
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
-  border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  /* Scrollbar para containers específicos */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-emerald-500/50 transition-all;
+  }
 }
 
 /* Animations */
@@ -99,93 +74,18 @@ body {
 }
 
 .animate-in {
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Message Bubble Glow */
-.bubble-shadow-me {
-  box-shadow: 0 4px 15px -3px var(--primary-glow);
+/* Status Utilities */
+.status-glow-emerald {
+  @apply shadow-[0_0_15px_rgba(16,185,129,0.3)];
 }
 
-.bubble-shadow-other {
-  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.05);
+.status-glow-amber {
+  @apply shadow-[0_0_15px_rgba(245,158,11,0.3)];
 }
 
-/* PDF Export Helpers */
-.pdf-only { display: none !important; }
-body.is-exporting-pdf .pdf-only { display: flex !important; }
-body.is-exporting-pdf .audio-player { display: none !important; }
-body.is-exporting-pdf .pdf-audio-visual { display: flex !important; }
-
-body.is-exporting-pdf #messages-container {
-  width: 850px !important;
-  max-width: 850px !important;
-  padding: 60px !important;
-  height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
-  background-color: #0b141a !important;
-}
-
-body.is-exporting-pdf .group {
-  width: 100% !important;
-}
-
-/* Glassmorphism & Premium UI Utilities */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-modal {
-  background: rgba(11, 20, 26, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.premium-shadow {
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-}
-
-.glow-emerald {
-  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.4));
-}
-
-@keyframes premium-pulse {
-  0% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.8; }
-}
-
-.animate-premium-pulse {
-  animation: premium-pulse 2s infinite ease-in-out;
-}
-
-/* Custom Utilities for Modern Login */
-.bg-radial-gradient {
-  background: radial-gradient(circle at center, var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to));
-}
-
-.text-glow-emerald {
-  text-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
-}
-
-.border-glass {
-  @apply border border-white/10 bg-white/[0.02] backdrop-blur-md;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-emerald-500/20 rounded-full;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  @apply bg-emerald-500/40;
+.glow-blue {
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.4));
 }

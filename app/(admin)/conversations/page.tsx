@@ -22,6 +22,7 @@ function ConversationsContent() {
   const [messagesCache, setMessagesCache] = useState<Record<string, any[]>>({});
   const [hasMoreMap, setHasMoreMap] = useState<Record<string, boolean>>({});
   const [loadingMore, setLoadingMore] = useState(false);
+  const [tick, setTick] = useState(0);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -36,6 +37,7 @@ function ConversationsContent() {
   );
   const [internalChats, setInternalChats] = useState<any[]>([]);
   const [activeInternalChatId, setActiveInternalChatId] = useState<string | null>(null);
+  const [lastPing, setLastPing] = useState<string | null>(null);
   const [internalUsers, setInternalUsers] = useState<any[]>([]);
   const [internalMessages, setInternalMessages] = useState<any[]>([]);
   const { socket, connected } = useSocket();
@@ -247,7 +249,7 @@ function ConversationsContent() {
 
   const fetchMessages = useCallback(async (conversationId: string, cursor?: string) => {
     try {
-      const url = `/api/conversations/${conversationId}/messages?limit=50${cursor ? `&cursor=${cursor}` : ''}`;
+      const url = `/api/conversations/${conversationId}/messages?limit=50&scope=all${cursor ? `&cursor=${cursor}` : ''}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch messages');
 
@@ -273,7 +275,13 @@ function ConversationsContent() {
       // Só atualiza a view se ainda for a conversa ativa (usando ref para evitar stale closure)
       if (activeIdRef.current === conversationId) {
         if (cursor) {
-          setMessages(prev => [...prev, ...newMessages]);
+          setMessages(prev => {
+            const combined = [...prev, ...newMessages];
+            return combined.sort((a, b) => 
+              new Date(b.createdAt || b.timestamp || 0).getTime() - 
+              new Date(a.createdAt || a.timestamp || 0).getTime()
+            );
+          });
         } else {
           setMessages(newMessages);
         }
@@ -306,17 +314,47 @@ function ConversationsContent() {
     activeIdRef.current = activeConversationId;
   }, [activeConversationId]);
 
+  const processedInitialId = useRef<string | null>(null);
+
   useEffect(() => {
-    if (initialId && conversations.length > 0) {
-      const exists = conversations.some(c => c.id === initialId);
-      if (exists) {
+    if (!initialId || processedInitialId.current === initialId) return;
+
+    const selectConversation = async () => {
+      processedInitialId.current = initialId;
+      
+      // 1. Tenta achar na lista local
+      const localConv = conversations.find(c => c.id === initialId);
+      if (localConv) {
         handleSelectConversation(initialId);
-        // Clear param from URL without refreshing
-        const params = new URLSearchParams(searchParams.toString());
-        params.delete('id');
-        router.replace(`/conversations${params.toString() ? '?' + params.toString() : ''}`);
+      } else {
+        // 2. Se não achar local, busca no servidor (importante para tickets fechados/antigos)
+        try {
+          const res = await fetch(`/api/conversations/${initialId}`);
+          if (res.ok) {
+            const remoteConv = await res.json();
+            setConversations(prev => {
+              if (prev.find(c => c.id === remoteConv.id)) return prev;
+              return [remoteConv, ...prev];
+            });
+            handleSelectConversation(initialId);
+          }
+        } catch (err) {
+          console.error('Erro ao buscar conversa inicial:', err);
+        }
       }
-    }
+
+      // 3. Limpa os parâmetros da URL APENAS após garantir a seleção
+      const isGenerating = searchParams.get('generateReport') === 'true';
+      if (!isGenerating) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (params.has('id')) {
+          params.delete('id');
+          router.replace(`/conversations${params.toString() ? '?' + params.toString() : ''}`);
+        }
+      }
+    };
+
+    selectConversation();
   }, [initialId, conversations, router, searchParams, handleSelectConversation]);
 
 
@@ -344,55 +382,81 @@ function ConversationsContent() {
   useEffect(() => {
     if (!socket) return;
 
+    socket.on('ping', (data: any) => {
+      setLastPing(new Date().toLocaleTimeString());
+    });
+
     socket.on('new_message', (data: any) => {
-      console.log('[Socket] Nova mensagem recebida:', data.message?.id, 'Conversa:', data.conversationId);
-      const { conversationId, message } = data;
+      const { conversationId: rawId, message, conversation: updatedConv } = data;
+      const conversationId = String(rawId);
+      const currentActiveId = activeIdRef.current ? String(activeIdRef.current) : null;
+      
+      console.log(`%c[SOCKET] 📥 MENSAGEM: ${message.id} | Conv: ${conversationId}`, 'background: #0000ff; color: white; padding: 2px;');
+      (window as any).lastMsg = data;
 
-      // 1. Update Global Cache
-      setMessagesCache(prev => {
-        const current = prev[conversationId] || [];
-        if (current.find(m => m.id === message.id)) return prev;
-        return { ...prev, [conversationId]: [message, ...current] };
-      });
+      // SÓ NOTIFICA SE NÃO ESTIVER NA CONVERSA ATIVA
+      if (currentActiveId !== conversationId) {
+        const playSound = () => {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+          audio.play().catch(() => {});
+        };
+        playSound();
 
-      // 2. Update Active View
-      if (activeIdRef.current === conversationId) {
+        const alertDiv = document.createElement('div');
+        alertDiv.innerHTML = `⚡ <b>NOVA MENSAGEM:</b> ${message.body.substring(0, 20)}${message.body.length > 20 ? '...' : ''}`;
+        alertDiv.style.cssText = 'position:fixed; top:20px; right:20px; background:linear-gradient(to right, #10b981, #3b82f6); color:white; padding:15px 25px; z-index:9999; border-radius:15px; font-weight:bold; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); animation: slideIn 0.5s ease-out;';
+        document.body.appendChild(alertDiv);
+        setTimeout(() => { alertDiv.style.opacity = '0'; setTimeout(() => alertDiv.remove(), 1000); }, 4000);
+      }
+
+      // 1. Atualizar a Janela de Chat (Mensagens) - FORÇADO E ROBUSTO
+      const cleanActiveId = currentActiveId?.trim().toLowerCase();
+      const cleanTargetId = conversationId?.trim().toLowerCase();
+
+      console.log(`[SOCKET] Auditoria: Ativa(${cleanActiveId}) | Alvo(${cleanTargetId})`);
+
+      if (cleanActiveId === cleanTargetId) {
+        console.log('%c[SOCKET] 💉 INJETANDO MENSAGEM NO CHAT ABERTO!', 'background: #22c55e; color: white; padding: 4px; border-radius: 4px;');
         setMessages(prev => {
-          if (prev.find(m => m.id === message.id)) return prev;
-          return [message, ...prev];
+          const messageId = String(message.id);
+          // EVITAR DUPLICIDADE: Verifica se a mensagem já existe no estado
+          if (prev.some(m => String(m.id) === messageId)) return prev;
+          
+          // Garante que a mensagem tenha uma data válida para o sort
+          const newMessage = {
+            ...message,
+            _isAgent: message.body?.startsWith('*') || message.body?.includes('Atendente'),
+            createdAt: message.createdAt || new Date().toISOString(),
+            timestamp: message.timestamp || new Date().toISOString()
+          };
+
+          const newList = [...prev, newMessage];
+          return newList.sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.timestamp || 0).getTime();
+            const dateB = new Date(b.createdAt || b.timestamp || 0).getTime();
+            return dateB - dateA; // Newer to older for flex-col-reverse
+          });
         });
       }
 
-      // 3. Update Conversation List (Unified by Contact)
+      // 2. Atualizar a Lateral (Conversas)
       setConversations(prev => {
-        const contactId = data.conversation?.contactId;
-        const index = prev.findIndex(c => 
-          c.id === conversationId || (contactId && c.contactId === contactId)
-        );
-
+        const index = prev.findIndex(c => String(c.id) === conversationId);
         if (index !== -1) {
-          const updated = [...prev];
-          // Cria uma nova referência para a conversa para forçar re-render
-          const conv = { ...updated[index] };
-          
-          // Se veio o objeto da conversa, atualizamos (pode ser um novo status ou protocolo)
-          if (data.conversation) {
-            Object.assign(conv, data.conversation);
-          }
-          
-          // Garante que o timestamp e a última mensagem estejam atualizados
-          conv.lastMessageAt = message.timestamp || new Date().toISOString();
-          conv.messages = [message];
-          
-          // Move para o topo (mais recente)
-          updated.splice(index, 1);
-          return [conv, ...updated];
+          const updatedList = [...prev];
+          const conv = { ...updatedList[index] };
+          conv.lastMessageAt = message.timestamp || message.createdAt;
+          conv.lastMessage = message.body;
+          if (updatedConv) Object.assign(conv, updatedConv);
+          updatedList.splice(index, 1);
+          return [conv, ...updatedList];
         } else {
-          // Se é um contato novo ou não está na lista atual por causa de filtros, melhor recarregar
           fetchConversations();
           return prev;
         }
       });
+
+      setTick(t => t + 1);
     });
 
     socket.on('new_internal_message', (data: any) => {
@@ -467,10 +531,10 @@ function ConversationsContent() {
       type: type
     };
     
-    setMessages(prev => [newMessage, ...prev]);
+    setMessages(prev => [{ ...newMessage, _isAgent: true }, ...prev]);
     setMessagesCache(prev => ({
       ...prev,
-      [activeConversation.id]: [newMessage, ...(prev[activeConversation.id] || [])]
+      [activeConversation.id]: [{ ...newMessage, _isAgent: true }, ...(prev[activeConversation.id] || [])]
     }));
 
     try {
@@ -491,11 +555,32 @@ function ConversationsContent() {
       } else {
         const data = await response.json();
         if (data) {
-          setMessages(prev => prev.map(m => m.id === newMessage.id ? data : m));
-          setMessagesCache(prev => ({
-            ...prev,
-            [activeConversation.id]: (prev[activeConversation.id] || []).map(m => m.id === newMessage.id ? data : m)
-          }));
+          setMessages(prev => {
+            const dataId = String(data.id);
+            const tempId = String(newMessage.id);
+            
+            // Se o socket já inseriu a mensagem real (com o mesmo ID), removemos a temporária.
+            if (prev.some(m => String(m.id) === dataId)) {
+              return prev.filter(m => String(m.id) !== tempId);
+            }
+            // Caso contrário, substituímos a temporária pela real.
+            return prev.map(m => String(m.id) === tempId ? { ...data, _isAgent: true } : m);
+          });
+          
+          setMessagesCache(prev => {
+            const conversationId = activeConversation.id;
+            const currentMsgs = prev[conversationId] || [];
+            if (currentMsgs.some(m => String(m.id) === String(data.id))) {
+              return {
+                ...prev,
+                [conversationId]: currentMsgs.filter(m => String(m.id) !== String(newMessage.id))
+              };
+            }
+            return {
+              ...prev,
+              [conversationId]: currentMsgs.map(m => String(m.id) === String(newMessage.id) ? { ...data, _isAgent: true } : m)
+            };
+          });
         }
       }
     } catch (err) {
@@ -558,7 +643,9 @@ function ConversationsContent() {
   };
 
   return (
-    <div className="p-8 h-full flex flex-col">
+    <>
+
+      <div className="p-8 h-full flex flex-col">
       <div className="flex-1 glass-panel rounded-[2rem] overflow-hidden flex shadow-2xl animate-in border-white/5">
       {/* Sidebar - Contatos */}
       <div className={cn(
@@ -589,29 +676,47 @@ function ConversationsContent() {
           </button>
         </div>
 
-        {viewMode === 'CUSTOMERS' ? (
-          <ConversationList 
-            conversations={conversations} 
-            activeId={activeConversationId || undefined}
-            onSelect={handleSelectConversation}
-            filter={filter}
-            setFilter={setFilter}
-            departments={availableDepartments}
-            selectedDepartment={selectedDepartment}
-            onDepartmentChange={setSelectedDepartment}
-            showDeptFilter={session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER'}
-          />
-        ) : (
-          <InternalChatList 
-            chats={internalChats}
-            users={internalUsers}
-            activeChatId={activeInternalChatId}
-            onSelectChat={setActiveInternalChatId}
-            onStartDirectChat={handleStartDirectChat}
-            onStartDepartmentChat={handleStartDepartmentChat}
-            currentUserId={session?.user?.id || ''}
-          />
-        )}
+        <div className="flex-1 overflow-hidden">
+          {viewMode === 'CUSTOMERS' ? (
+            <ConversationList 
+              conversations={conversations} 
+              activeId={activeConversationId || undefined}
+              onSelect={handleSelectConversation}
+              filter={filter}
+              setFilter={setFilter}
+              departments={availableDepartments}
+              selectedDepartment={selectedDepartment}
+              onDepartmentChange={setSelectedDepartment}
+              showDeptFilter={session?.user?.role === 'ADMIN' || session?.user?.role === 'MANAGER'}
+            />
+          ) : (
+            <InternalChatList 
+              chats={internalChats}
+              users={internalUsers}
+              activeChatId={activeInternalChatId}
+              onSelectChat={setActiveInternalChatId}
+              onStartDirectChat={handleStartDirectChat}
+              onStartDepartmentChat={handleStartDepartmentChat}
+              currentUserId={session?.user?.id || ''}
+            />
+          )}
+        </div>
+
+        {/* Socket Indicators Relocated to Sidebar Bottom */}
+        <div className="p-4 bg-black/20 border-t border-white/5 space-y-2">
+          <div className={cn(
+            "px-3 py-1.5 rounded-xl text-[9px] font-black tracking-[0.1em] flex items-center justify-center gap-2 border backdrop-blur-md transition-all duration-500",
+            connected ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-red-500/10 border-red-500/20 text-red-500"
+          )}>
+            <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+            SOCKET: {connected ? "CONECTADO" : "DESCONECTADO"}
+          </div>
+          {lastPing && (
+            <div className="px-3 py-1 bg-blue-500/5 border border-white/5 text-slate-500 text-[8px] font-bold rounded-lg text-center uppercase tracking-widest">
+              Último Sinal: {lastPing}
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Área do Chat */}
@@ -626,28 +731,22 @@ function ConversationsContent() {
           />
         ) : activeConversation ? (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <div className="flex-1 min-h-0">
-              <ChatWindow 
-                conversation={activeConversation} 
-                messages={messages}
-                onStatusUpdate={fetchConversations}
-                onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
-                isSidebarCollapsed={!isSidebarVisible}
-                onLoadMore={loadMoreMessages}
-                hasMore={hasMoreMap[activeConversationId || '']}
-                onDeleted={() => {
-                  setActiveConversationId(null);
-                  showToast('Ação concluída com sucesso!');
-                }}
-              />
-            </div>
-            <div className="flex-shrink-0 bg-white/5 px-6 py-4 border-t border-white/5 backdrop-blur-md relative z-20">
-              <MessageInput 
-                onSend={handleSendMessage} 
-                onSendMedia={handleSendMedia}
-                disabled={!activeConversation}
-              />
-            </div>
+            <ChatWindow 
+              conversation={activeConversation} 
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              onSendMedia={handleSendMedia}
+              onStatusUpdate={fetchConversations}
+              onToggleSidebar={() => setIsSidebarVisible(!isSidebarVisible)}
+              isSidebarCollapsed={!isSidebarVisible}
+              onLoadMore={loadMoreMessages}
+              hasMore={hasMoreMap[activeConversationId || '']}
+              autoGenerateReport={searchParams.get('generateReport') === 'true'}
+              onDeleted={() => {
+                setActiveConversationId(null);
+                showToast('Ação concluída com sucesso!');
+              }}
+            />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
@@ -672,21 +771,6 @@ function ConversationsContent() {
         )}
       </div>
 
-      {/* Socket Connection Status and Indicators */}
-      <div className="fixed bottom-8 left-8 z-[100] flex flex-col gap-2">
-        {!connected && (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-black text-amber-500 uppercase tracking-widest animate-pulse">
-            <ShieldAlert size={12} />
-            Socket Desconectado - Polling Ativo
-          </div>
-        )}
-        {connected && (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-500 uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity">
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-            Tempo Real Ativo
-          </div>
-        )}
-      </div>
 
       {/* Toast Notification */}
       {toast.show && (
@@ -700,8 +784,9 @@ function ConversationsContent() {
           </div>
         </div>
       )}
+      </div>
     </div>
-  </div>
+  </>
   );
 }
 

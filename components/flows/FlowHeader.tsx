@@ -29,119 +29,122 @@ export default function FlowHeader({
   const router = useRouter();
 
   return (
-    <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
-      <div className="flex items-center gap-3 md:gap-6">
+    <header className="h-14 md:h-16 bg-slate-950 border-b border-slate-800 px-4 md:px-6 flex items-center justify-between sticky top-0 z-50 shadow-2xl">
+      <div className="flex items-center gap-3 md:gap-5">
         <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={onToggleSidebar}
-          className="lg:hidden p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 transition-colors"
-        >
-          <Menu size={20} />
-        </motion.button>
-
-        <motion.button
-          whileHover={{ x: -4 }}
+          whileHover={{ x: -2 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => router.push('/flows')}
-          className="hidden sm:flex p-2 md:p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
+          className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-blue-500 transition-all border border-slate-800"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={16} />
         </motion.button>
 
-        <div className="flex items-center gap-3 md:gap-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-600/20 shrink-0">
-            <GitBranch size={20} className="md:w-6 md:h-6" />
+        <div className="flex items-center gap-2.5 md:gap-3.5">
+          <div className="relative group hidden sm:block">
+             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/20 shrink-0 relative overflow-hidden">
+                <GitBranch size={16} className="group-hover:rotate-12 transition-transform duration-500" />
+             </div>
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm md:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate max-w-[120px] md:max-w-none">
+            <div className="flex items-center gap-2 mb-0.5">
+              <h1 className="text-sm md:text-base font-black text-white tracking-tight truncate max-w-[150px] md:max-w-none">
                 {flow?.name || 'Carregando...'}
               </h1>
               <span className={cn(
-                "hidden xs:inline-block px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold uppercase tracking-wider",
+                "px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-widest shadow-sm border shrink-0",
                 flow?.isActive 
-                  ? "bg-emerald-500/10 text-emerald-500" 
-                  : "bg-slate-500/10 text-slate-500"
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                  : "bg-slate-900 text-slate-500 border-slate-800"
               )}>
-                {flow?.isActive ? 'Ativo' : 'Rascunho'}
+                {flow?.isActive ? '• Ativo' : 'Draft'}
               </span>
             </div>
-            <p className="text-[10px] md:text-xs text-slate-500 font-medium truncate max-w-[150px] md:max-w-none">
-              {flow?.description || 'Editor de fluxo'}
+            <p className="text-[8px] text-slate-600 font-black uppercase tracking-widest opacity-80 truncate hidden xs:block">
+              {flow?.description || 'Editor inteligente'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 md:gap-6">
-        {/* Gatilhos e Configs */}
+      <div className="flex items-center gap-2 md:gap-3">
         <motion.button
+          whileHover={{ y: -1 }}
           whileTap={{ scale: 0.95 }}
           onClick={onOpenSettings}
-          className="flex items-center gap-2 px-3 md:px-5 py-2 md:py-3 rounded-2xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-all border border-amber-500/20 shadow-lg shadow-amber-500/5 group shrink-0"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition-all shadow-lg shadow-amber-600/20 group border border-white/5"
         >
-          <Zap size={18} className="md:w-5 md:h-5 group-hover:fill-amber-500 transition-all" />
-          <span className="hidden sm:inline text-[10px] md:text-xs font-black uppercase tracking-widest">Gatilhos</span>
+          <Zap size={14} className="fill-current" />
+          <span className="text-[8px] font-black uppercase tracking-widest hidden sm:block">Gatilhos</span>
         </motion.button>
 
-        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 md:mx-0" />
+        <div className="h-5 w-px bg-slate-800 hidden sm:block" />
 
-        {/* Instâncias Selector */}
-        <div className="hidden sm:flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-x-auto max-w-[150px] md:max-w-none no-scrollbar">
-          <div className="hidden md:flex px-3 items-center gap-2 text-slate-400">
-            <Smartphone size={14} />
-            <span className="text-[10px] font-bold uppercase tracking-tight">Canais</span>
+        <div className="hidden lg:flex items-center gap-1.5 bg-slate-900 p-1 rounded-lg border border-slate-800 shadow-inner overflow-x-auto custom-scrollbar max-w-[200px] xl:max-w-none">
+          <div className="flex px-1.5 items-center gap-1.5 text-slate-500 shrink-0">
+            <Smartphone size={10} />
+            <span className="text-[7px] font-black uppercase tracking-widest">Canais</span>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => {
-                selectedInstanceIds.length > 0 && selectedInstanceIds.forEach(id => onInstanceToggle(id));
-              }}
-              className={cn(
-                "px-2 md:px-3 py-1 md:py-1.5 rounded-xl text-[9px] md:text-[10px] font-bold transition-all border shrink-0",
-                selectedInstanceIds.length === 0
-                  ? "bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/20"
-                  : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
-              )}
-            >
-              Todas
-            </button>
-            {instances.map((inst) => (
+          
+          <button
+            onClick={() => {
+              if (selectedInstanceIds.length === instances.length) {
+                // Deselect all
+                selectedInstanceIds.forEach(id => onInstanceToggle(id));
+              } else {
+                // Select all (only those not selected)
+                instances.forEach(i => {
+                  if (!selectedInstanceIds.includes(i.id)) onInstanceToggle(i.id);
+                });
+              }
+            }}
+            className={cn(
+              "px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-tight transition-all shrink-0",
+              selectedInstanceIds.length === instances.length
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-slate-800 text-slate-500 border border-slate-700 hover:border-blue-500/50"
+            )}
+          >
+            Todas
+          </button>
+
+          {instances.map((inst) => {
+            const isSelected = selectedInstanceIds.includes(inst.id);
+            return (
               <button
                 key={inst.id}
                 onClick={() => onInstanceToggle(inst.id)}
                 className={cn(
-                  "px-2 md:px-3 py-1 md:py-1.5 rounded-xl text-[9px] md:text-[10px] font-bold transition-all border shrink-0",
-                  selectedInstanceIds.includes(inst.id)
-                    ? "bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-600/20"
-                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500"
+                  "px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-tight transition-all shrink-0 border",
+                  isSelected
+                    ? "bg-slate-800 text-blue-400 border-blue-500/30"
+                    : "bg-transparent text-slate-600 border-transparent hover:border-slate-800"
                 )}
               >
                 {inst.name}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        <div className="hidden md:block h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2" />
-
         <motion.button
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.98 }}
           onClick={onSave}
           disabled={saving}
           className={cn(
-            "flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-2xl text-xs md:text-sm font-bold transition-all shadow-xl shrink-0",
+            "flex items-center gap-2 px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-xl shrink-0",
             saving 
-              ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed" 
-              : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30"
+              ? "bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800" 
+              : "bg-blue-600 text-white shadow-blue-600/30 hover:bg-blue-500 border border-white/5"
           )}
         >
           {saving ? (
-            <Loader2 size={18} className="animate-spin" />
+            <Loader2 size={14} className="animate-spin" />
           ) : (
             <>
-              <Save size={18} className="md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Salvar Alterações</span>
-              <span className="sm:hidden">Salvar</span>
+              <Save size={14} />
+              <span className="hidden xs:block">Salvar</span>
             </>
           )}
         </motion.button>

@@ -30,14 +30,19 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name, description } = await req.json();
+    const { name, description, idleTimeout, idleCloseMessage } = await req.json();
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
     const department = await prisma.department.create({
-      data: { name, description }
+      data: { 
+        name, 
+        description,
+        idleTimeout: idleTimeout ? parseInt(idleTimeout) : null,
+        idleCloseMessage
+      }
     });
 
     return NextResponse.json(department);

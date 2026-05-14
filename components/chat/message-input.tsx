@@ -160,17 +160,17 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
         className="flex items-end gap-3 max-w-7xl mx-auto"
       >
         {/* Attachment & Emoji Buttons */}
-        <div className="flex items-center gap-1 bg-white/[0.03] backdrop-blur-2xl border border-white/5 rounded-2xl p-1.5 shadow-2xl">
+        <div className="flex items-center gap-1.5 bg-white/[0.02] backdrop-blur-3xl border border-white/5 rounded-[2rem] p-1.5 shadow-2xl">
           <div className="relative" ref={emojiRef}>
             <button 
               type="button" 
               onClick={() => setShowEmoji(!showEmoji)}
               className={cn(
-                "p-2.5 rounded-xl transition-all duration-300 group",
+                "p-3 rounded-2xl transition-all duration-500 group",
                 showEmoji ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:text-white hover:bg-white/5"
               )}
             >
-              <Smile size={22} className="group-active:scale-90 transition-transform" />
+              <Smile size={20} className="group-active:scale-90 transition-transform" />
             </button>
             
             <AnimatePresence>
@@ -197,23 +197,23 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
           <button 
             type="button" 
             onClick={() => fileInputRef.current?.click()}
-            className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+            className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-2xl transition-all group"
           >
-            <Paperclip size={22} className="group-active:scale-90 transition-transform" />
+            <Paperclip size={20} className="group-active:scale-90 transition-transform" />
           </button>
 
-          <div className="w-px h-6 bg-white/10 mx-1" />
+          <div className="w-px h-5 bg-white/10 mx-0.5" />
 
           <button 
             type="button" 
             onClick={() => setIsInternal(!isInternal)}
             className={cn(
-              "p-2.5 rounded-xl transition-all group flex items-center gap-2",
+              "p-3 rounded-2xl transition-all group flex items-center gap-2",
               isInternal ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20" : "text-slate-400 hover:text-white hover:bg-white/5"
             )}
             title={isInternal ? "Modo: Nota Interna (Oculto p/ Cliente)" : "Modo: Mensagem Direta"}
           >
-            <FileText size={22} className="group-active:scale-90 transition-transform" />
+            <FileText size={20} className="group-active:scale-90 transition-transform" />
             {isInternal && <span className="text-[10px] font-black uppercase tracking-tighter pr-1">Nota</span>}
           </button>
         </div>
@@ -226,24 +226,25 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute bottom-full left-0 mb-4 w-full bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+                className="absolute bottom-full left-0 mb-4 w-full bg-slate-900/95 backdrop-blur-3xl border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden z-50"
               >
-                <div className="p-2 bg-white/5 border-b border-white/5">
+                <div className="p-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-2">Respostas Rápidas</span>
+                  <Bot size={14} className="text-emerald-500/50" />
                 </div>
-                <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                <div className="max-h-60 overflow-y-auto custom-scrollbar">
                   {filteredShortcuts.map((s, idx) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => handleSelectShortcut(s)}
                       className={cn(
-                        "w-full text-left px-4 py-3 flex flex-col gap-0.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none",
-                        idx === selectedIndex ? "bg-white/5" : ""
+                        "w-full text-left px-5 py-4 flex flex-col gap-1 hover:bg-emerald-500/5 transition-colors border-b border-white/5 last:border-none",
+                        idx === selectedIndex ? "bg-emerald-500/10" : ""
                       )}
                     >
-                      <span className="text-xs font-black text-emerald-500 uppercase tracking-tighter">/{s.shortcut}</span>
-                      <p className="text-[11px] text-slate-400 line-clamp-1">{s.content}</p>
+                      <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">/{s.shortcut}</span>
+                      <p className="text-sm text-slate-300 font-medium line-clamp-2 leading-relaxed">{s.content}</p>
                     </button>
                   ))}
                 </div>
@@ -252,36 +253,39 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
 
             {(selectedFile || isRecording) && (
               <motion.div 
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute bottom-full left-0 mb-4 w-full bg-slate-900/90 backdrop-blur-2xl p-4 rounded-3xl border border-white/10 shadow-2xl flex items-center gap-4"
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-full left-0 mb-4 w-full bg-slate-950/80 backdrop-blur-3xl p-5 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-5"
               >
                 {isRecording ? (
                   <>
-                    <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 animate-pulse">
-                      <Mic size={28} className="text-red-500" />
+                    <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20 animate-premium-pulse">
+                      <Mic size={32} className="text-red-500" />
                     </div>
                     <div className="flex flex-col flex-1">
-                      <span className="text-sm font-bold text-white">Gravando Áudio...</span>
-                      <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{formatTime(recordingTime)}</span>
+                      <span className="text-base font-black text-white tracking-tight">Gravando Áudio Premium</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{formatTime(recordingTime)}</span>
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
-                      {selectedFile?.type.includes('image') ? <ImageIcon size={28} className="text-emerald-500" /> : <Paperclip size={28} className="text-emerald-500" />}
+                    <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
+                      {selectedFile?.type.includes('image') ? <ImageIcon size={32} className="text-emerald-500" /> : <FileText size={32} className="text-emerald-500" />}
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-sm font-bold text-white truncate">{selectedFile?.name}</span>
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{(selectedFile?.size || 0 / 1024 / 1024).toFixed(2)} MB</span>
+                      <span className="text-base font-black text-white tracking-tight truncate">{selectedFile?.name}</span>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{(selectedFile?.size || 0 / 1024 / 1024).toFixed(2)} MB • Pronto para enviar</span>
                     </div>
                   </>
                 )}
                 <button 
                   type="button" 
                   onClick={() => isRecording ? stopRecording() : setSelectedFile(null)}
-                  className="p-2 hover:bg-red-400/10 rounded-xl transition-colors text-slate-400 hover:text-red-400"
+                  className="p-3 bg-white/5 hover:bg-red-500/10 rounded-2xl transition-all text-slate-400 hover:text-red-400"
                 >
                   <X size={20} />
                 </button>
@@ -319,34 +323,34 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
               }}
               disabled={disabled || isRecording}
               className={cn(
-                "w-full pl-6 pr-14 py-4 bg-white/[0.03] backdrop-blur-2xl border rounded-3xl text-[15px] outline-none disabled:opacity-50 placeholder-slate-600 transition-all resize-none shadow-2xl",
+                "w-full pl-7 pr-16 py-5 bg-white/[0.03] backdrop-blur-3xl border rounded-[2rem] text-base font-medium outline-none disabled:opacity-50 placeholder-slate-600 transition-all resize-none shadow-2xl",
                 isInternal 
-                  ? "border-amber-500/30 focus:ring-2 focus:ring-amber-500/20 text-amber-100" 
-                  : "border-white/5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 text-white"
+                  ? "border-amber-500/30 focus:ring-4 focus:ring-amber-500/5 text-amber-100" 
+                  : "border-white/5 focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500/20 text-white"
               )}
               placeholder={
                 isInternal 
-                  ? "Escreva uma nota interna (oculta para o cliente)..." 
-                  : selectedFile ? "Adicione uma legenda..." : isRecording ? "Gravando áudio..." : "Escreva sua mensagem aqui (use / para atalhos)..."
+                  ? "Sua nota interna aqui..." 
+                  : selectedFile ? "Legenda opcional..." : isRecording ? "Escutando..." : "Digite aqui... (use / para atalhos)"
               }
-              style={{ minHeight: '56px' }}
+              style={{ minHeight: '64px' }}
             />
             
-            <div className="absolute right-3 bottom-2.5">
+            <div className="absolute right-3.5 bottom-3">
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.1, rotate: -15 }}
+                whileTap={{ scale: 0.9, rotate: 0 }}
                 type={isRecording ? "button" : "submit"}
                 onClick={isRecording ? stopRecording : undefined}
                 disabled={disabled || (!text.trim() && !selectedFile && !isRecording)}
                 className={cn(
-                  "p-2.5 rounded-2xl transition-all duration-300 shadow-xl",
+                  "w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-xl",
                   text.trim() || selectedFile || isRecording
                     ? (isInternal ? "bg-amber-500 text-slate-950 shadow-amber-500/20" : "bg-emerald-500 text-slate-950 shadow-emerald-500/20")
-                    : "bg-white/5 text-slate-600 cursor-not-allowed"
+                    : "bg-white/5 text-slate-600 cursor-not-allowed opacity-50"
                 )}
               >
-                {isRecording ? <Send size={22} strokeWidth={2.5} /> : <Send size={22} strokeWidth={2.5} />}
+                <Send size={20} strokeWidth={2.5} />
               </motion.button>
             </div>
           </div>
@@ -359,9 +363,9 @@ export function MessageInput({ onSend, onSendMedia, disabled }: MessageInputProp
             whileTap={{ scale: 0.95 }}
             type="button"
             onClick={startRecording}
-            className="p-4 bg-white/[0.03] backdrop-blur-2xl border border-white/5 rounded-2xl text-slate-400 hover:text-emerald-400 transition-all shadow-2xl"
+            className="w-16 h-16 bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[2rem] flex items-center justify-center text-slate-400 hover:text-emerald-500 transition-all shadow-2xl group"
           >
-            <Mic size={24} />
+            <Mic size={24} className="group-hover:scale-110 transition-transform" />
           </motion.button>
         )}
       </form>

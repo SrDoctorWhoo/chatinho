@@ -9,9 +9,10 @@ const lastMessageTimes = new Map<string, number>();
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('\n--- WEBHOOK RECEBIDO ---');
+    console.log('\n%c--- 🌐 WEBHOOK RECEBIDO (WHATSAPP) ---', 'background: #25d366; color: black; padding: 4px; font-weight: bold');
+    console.log(`[Webhook] Path: ${req.url}`);
     console.log(JSON.stringify(body, null, 2));
-    console.log('------------------------\n');
+    console.log('------------------------------------\n');
 
     const event = (body.event || '').toLowerCase();
     console.log(`[Webhook] Evento: ${event}`);

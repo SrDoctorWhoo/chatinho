@@ -87,8 +87,11 @@ export async function POST(req: NextRequest) {
 
           // Notify Socket
           try {
-            const socketPort = process.env.SOCKET_PORT || 3001;
-            await fetch(`http://localhost:${socketPort}/notify`, {
+            const socketUrl = process.env.SOCKET_URL || 'http://127.0.0.1:3000';
+            const notifyUrl = `${socketUrl.replace(/\/$/, '')}/api/internal/notify-socket`;
+            console.log(`[Webhook Evolution] Notificando socket em: ${notifyUrl} para conversa ${conversation.id}`);
+            
+            const notifyRes = await fetch(notifyUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -99,12 +102,22 @@ export async function POST(req: NextRequest) {
                   message: {
                     ...newMessage,
                     timestamp: newMessage.timestamp.toISOString()
+                  },
+                  conversation: {
+                    ...conversation,
+                    lastMessageAt: new Date().toISOString()
                   }
                 }
               })
             });
+            if (notifyRes.ok) {
+              console.log(`[Webhook Evolution] ✅ Socket notificado com sucesso`);
+            } else {
+              const errText = await notifyRes.text();
+              console.error(`[Webhook Evolution] ❌ Falha na notificação: ${notifyRes.status} - ${errText}`);
+            }
           } catch (e) {
-            console.error('[Webhook Evolution] Erro ao notificar socket:', e);
+            console.error('[Webhook Evolution] ❌ Erro ao notificar socket:', e);
           }
         }
       }

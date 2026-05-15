@@ -5,7 +5,8 @@ export function replaceVars(text: string, variables: Record<string, any>) {
   let newStr = text;
   Object.keys(variables).forEach(key => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
-    newStr = newStr.replace(regex, variables[key]);
+    const val = typeof variables[key] === 'object' ? JSON.stringify(variables[key]) : variables[key];
+    newStr = newStr.replace(regex, val);
   });
   return newStr;
 }

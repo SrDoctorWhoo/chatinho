@@ -9,6 +9,7 @@ export const botEngine = {
     const variables = JSON.parse(conversation.variables || '{}');
     
     let depsList = '';
+    let depsWithIds = '';
 
     // If we are in a flow, get departments from ALL instances linked to this flow
     if (conversation.currentFlowId) {
@@ -17,15 +18,17 @@ export const botEngine = {
         include: { 
           instances: { 
             include: { 
-              departments: { select: { name: true } } 
+              departments: { select: { id: true, name: true } } 
             } 
           } 
         }
       });
       
       if (flow && flow.instances.length > 0) {
-        const allDeps = flow.instances.flatMap(inst => inst.departments.map(d => d.name));
-        depsList = Array.from(new Set(allDeps)).join(', ');
+        const allDeps = flow.instances.flatMap(inst => inst.departments);
+        const uniqueDeps = Array.from(new Map(allDeps.map(d => [d.id, d])).values());
+        depsList = uniqueDeps.map(d => d.name).join(', ');
+        depsWithIds = uniqueDeps.map(d => `${d.name} (ID: ${d.id})`).join(', ');
       }
     }
 
@@ -33,9 +36,10 @@ export const botEngine = {
     if (!depsList) {
       const instance = await prisma.whatsappInstance.findUnique({
         where: { name: instanceName },
-        include: { departments: { select: { name: true } } }
+        include: { departments: { select: { id: true, name: true } } }
       });
       depsList = instance?.departments.map(d => d.name).join(', ') || '';
+      depsWithIds = instance?.departments.map(d => `${d.name} (ID: ${d.id})`).join(', ') || '';
     }
     
     // Force identity from contact OR remoteJid
@@ -50,12 +54,22 @@ export const botEngine = {
     variables.name = variables.nome;
     variables.telefone = rawNumber;
     variables.number = rawNumber;
-    variables.departamentos = depsList;
+    variables.departamentos = depsWithIds; // Agora contém Nome (ID: uuid)
+    variables.setores_disponiveis = depsWithIds;
     variables.platform = conversation.platform;
     variables.protocol = conversation.protocol;
     variables.remoteJid = remoteJid;
     variables.instanceName = instanceName;
     variables.is_first_interaction = messageCount <= 1 ? 'true' : 'false';
+
+    // Salvar o instanceName nas variáveis do banco se for diferente
+    const currentVars = JSON.parse(conversation.variables || '{}');
+    if (currentVars.instanceName !== instanceName) {
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { variables: JSON.stringify({ ...currentVars, ...variables }) }
+      });
+    }
 
     return { 
       conversationId: conversation.id, 
@@ -89,7 +103,7 @@ export const botEngine = {
         );
 
         if (matchedFlow) {
-          return this.triggerFlow(matchedFlow.id, conversationId, instanceName, remoteJid);
+          return this.triggerFlow(matchedFlow.id, context);
         }
       }
 
@@ -110,7 +124,7 @@ export const botEngine = {
 
              if (matchedOption) {
                 if (matchedOption.targetFlowId) {
-                   return this.triggerFlow(matchedOption.targetFlowId, conversationId, instanceName, remoteJid);
+                   return this.triggerFlow(matchedOption.targetFlowId, context);
                 }
                 if (matchedOption.targetNodeId) {
                    await prisma.conversation.update({
@@ -160,7 +174,7 @@ export const botEngine = {
         });
 
         if (welcomeFlow && welcomeFlow.nodes.length > 0) {
-          return this.triggerFlow(welcomeFlow.id, conversationId, instanceName, remoteJid);
+          return this.triggerFlow(welcomeFlow.id, context);
         }
       }
 
@@ -178,7 +192,16 @@ export const botEngine = {
       if (!node) return;
 
       if (node.type === 'AI_DIFY') {
-        return aiProcessor.process(node, context);
+        const result = await aiProcessor.process(node, context);
+        
+        // Se houver um próximo passo e NÃO houve uma mudança de fluxo dentro do aiProcessor
+        if (node.nextStepId) {
+          // Pequeno delay para naturalidade
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return this.executeNode(node.nextStepId, context);
+        }
+        
+        return result;
       } else {
         return nodeProcessor.process(node, context, this);
       }
@@ -187,10 +210,11 @@ export const botEngine = {
     }
   },
 
-  async triggerFlow(flowId: string, conversationId: string, instanceName: string, remoteJid: string) {
+  async triggerFlow(flowId: string, initialContext: any) {
+    const { conversationId, instanceName, remoteJid } = initialContext;
     const flow = await prisma.chatbotFlow.findUnique({
       where: { id: flowId },
-      include: { nodes: { orderBy: { id: 'asc' }, include: { options: true } } }
+      include: { nodes: { orderBy: { order: 'asc' }, include: { options: true } } }
     });
 
     if (!flow || flow.nodes.length === 0) return;

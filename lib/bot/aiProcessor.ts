@@ -100,55 +100,100 @@ export const aiProcessor = {
         if (answer) {
           let finalAnswer = replaceVars(answer, updatedVars);
           
-          // Check for Transfer tag
-          const transferMatch = finalAnswer.match(/\[TRANSFER(?:_DEPT:([a-zA-Z0-9_-]+))?\]/i);
-          let shouldTransfer = !!transferMatch;
-          let transferDeptId = transferMatch ? transferMatch[1] : null;
-          
-          if (shouldTransfer) {
-            finalAnswer = finalAnswer.replace(/\[TRANSFER(?:_DEPT:[a-zA-Z0-9_-]+)?\]/gi, '').trim();
-          }
-
-          // Log AI usage
-          await prisma.aIUsage.create({
-            data: {
-              conversationId,
-              integrationId: integration.id,
-              action: shouldTransfer ? 'TRANSFER' : 'RESPONSE',
-              duration: 0 // Duration calculation could be added
+            // Check for Flow Trigger tag
+            const flowMatch = finalAnswer.match(/\[TRIGGER_FLOW:([^\]]+)\]/i);
+            
+            // AUTO-RECOVERY: Se a IA falar de autenticação/login mas esquecer a tag, tenta disparar o fluxo 2
+            let detectedFlowName = flowMatch ? flowMatch[1] : null;
+            if (!detectedFlowName && (finalAnswer.toLowerCase().includes('autenticação') || finalAnswer.toLowerCase().includes('fazer login'))) {
+              detectedFlowName = '2. Autenticação OAB';
+              console.log('[AIProcessor] Auto-recovery: Detectada menção a login sem tag. Forçando Fluxo 2.');
             }
-          });
 
-          // Send final response
-          if (finalAnswer) {
-            await messageDispatcher.send({ 
-              conversationId, 
-              body: finalAnswer, 
-              type: 'bot',
-              instanceName,
-              remoteJid
-            });
-          }
+            if (detectedFlowName) {
+              const flowName = detectedFlowName;
+              console.log(`[AIProcessor] Tentando disparar fluxo: "${flowName}"`);
+              finalAnswer = finalAnswer.replace(/\[TRIGGER_FLOW:[^\]]+\]/gi, '').trim();
+              
+              const targetFlow = await prisma.chatbotFlow.findFirst({
+                where: { name: flowName }
+              });
 
-          if (shouldTransfer) {
-            await prisma.conversation.update({
-              where: { id: conversationId },
-              data: { 
-                isBotActive: false,
-                status: 'QUEUED',
-                departmentId: transferDeptId || null,
-                currentFlowId: null,
-                currentStepId: null
+              if (targetFlow) {
+                console.log(`[AIProcessor] Fluxo encontrado! ID: ${targetFlow.id}. Mudando agora...`);
+                // Enviar a resposta da IA antes de trocar
+                if (finalAnswer) {
+                  await messageDispatcher.send({ conversationId, body: finalAnswer, type: 'bot', instanceName, remoteJid });
+                }
+                
+                // Importação dinâmica para evitar dependência circular
+                const { botEngine } = await import('@/lib/botEngine');
+                
+                const result = await botEngine.triggerFlow(targetFlow.id, {
+                  conversationId, instanceName, remoteJid, platform: conversation.platform, variables: updatedVars
+                });
+                console.log('[AIProcessor] Resultado do triggerFlow:', result ? 'Sucesso' : 'Falha/Vazio');
+                return result;
+              } else {
+                console.error(`[AIProcessor] ERRO: Fluxo "${flowName}" NÃO ENCONTRADO no banco de dados.`);
               }
-            });
+            }
 
-            // 🚀 VERIFICAR GATILHO DE FLUXO POR DEPARTAMENTO
-            if (transferDeptId) {
-              await checkAndTriggerDepartmentFlow(conversationId, transferDeptId);
+            // Check for Transfer tag
+            const transferMatch = finalAnswer.match(/\[TRANSFER(?:_DEPT:([^\]]+))?\]/i);
+            let shouldTransfer = !!transferMatch;
+            let transferDeptId = transferMatch ? transferMatch[1] : null;
+
+            // AUTO-RECOVERY: Se a IA falar de transferir mas esquecer a tag, força a fila
+            if (!shouldTransfer && (finalAnswer.toLowerCase().includes('vou transferir') || finalAnswer.toLowerCase().includes('atendente') || finalAnswer.toLowerCase().includes('equipe financeira'))) {
+              shouldTransfer = true;
+              console.log('[AIProcessor] Auto-recovery: Detectada menção a transferência sem tag. Forçando fila.');
+            }
+
+            if (shouldTransfer) {
+              let finalDeptId = null;
+
+              if (transferDeptId) {
+                const dept = await prisma.department.findFirst({
+                  where: {
+                    OR: [
+                      { id: transferDeptId },
+                      { name: transferDeptId }
+                    ]
+                  }
+                });
+                if (dept) finalDeptId = dept.id;
+              }
+
+              console.log(`[AIProcessor] IA disparou TRANSFERÊNCIA. Setor Final: ${finalDeptId || 'Geral'}`);
+              
+              await prisma.conversation.update({
+                where: { id: conversationId },
+                data: { 
+                  isBotActive: false,
+                  status: 'QUEUED',
+                  departmentId: finalDeptId || conversation.departmentId,
+                  currentFlowId: null,
+                  currentStepId: null,
+                  closedAt: null // Garantir que o chamado não esteja fechado
+                }
+              });
+              
+              if (finalAnswer) {
+                finalAnswer = finalAnswer.replace(/\[TRANSFER(?:_DEPT:[^\]]+)?\]/gi, '').trim();
+                if (finalAnswer) {
+                  await messageDispatcher.send({ conversationId, body: finalAnswer, type: 'bot', instanceName, remoteJid });
+                }
+              }
+              return;
+            }
+
+            // Se não for transferência, apenas envia a resposta normal
+            if (finalAnswer) {
+               await messageDispatcher.send({ conversationId, body: finalAnswer, type: 'bot', instanceName, remoteJid });
             }
           }
-        }
-      } else {
+        } else {
         const errorBody = await response.text();
         console.error(`[AIProcessor] ❌ Erro na integração (${response.status}):`, errorBody);
         
@@ -194,20 +239,32 @@ export const aiProcessor = {
           } else {
             // Default: everything
             Object.keys(rawInputs).forEach(key => {
-              cleanInputs[key] = rawInputs[key] || '---';
+              const val = rawInputs[key];
+              cleanInputs[key] = val !== undefined && val !== null ? String(val) : '---';
             });
           }
         } catch (e) {
           console.error('[AIProcessor] Error parsing payloadMapping:', e);
           // Fallback: everything
           Object.keys(rawInputs).forEach(key => {
-            cleanInputs[key] = rawInputs[key] || '---';
+            const val = rawInputs[key];
+            cleanInputs[key] = val !== undefined && val !== null ? String(val) : '---';
           });
         }
       } else {
-        // Default: everything
-        Object.keys(rawInputs).forEach(key => {
-          cleanInputs[key] = rawInputs[key] || '---';
+        // Enviar apenas variáveis essenciais para evitar Erro 400 (limite de payload ou caracteres)
+        const essentialKeys = ['nome', 'name', 'telefone', 'number', 'email', 'cpfCnpj', 'user_logged_in', 'isAdvogado', 'is_first_interaction', 'historico', 'history', 'departamentos', 'setores_disponiveis', 'sql_result'];
+        
+        essentialKeys.forEach(key => {
+          if (variables[key] !== undefined) {
+            const value = variables[key];
+            if (value !== null && typeof value === 'object') {
+              cleanInputs[key] = JSON.stringify(value);
+            } else {
+              // FORÇAR STRING: Dify exige que campos 'text-input' sejam strings puras
+              cleanInputs[key] = value !== undefined && value !== null ? String(value) : '---';
+            }
+          }
         });
       }
       
@@ -220,8 +277,16 @@ export const aiProcessor = {
       const rawUser = variables.number || variables.telefone || variables.remoteJid || 'anonymous';
       const userId = String(rawUser).replace(/[^0-9a-zA-Z]/g, '_');
 
+      // Garantir que ABSOLUTAMENTE TUDO seja string para o Dify
+      const finalInputs: Record<string, string> = {};
+      Object.entries(cleanInputs).forEach(([key, val]) => {
+        finalInputs[key] = typeof val === 'string' ? val : String(val);
+      });
+
+      console.log('[AIProcessor] Payload Final enviado ao Dify:', JSON.stringify(finalInputs));
+
       const difyBody: any = {
-        inputs: cleanInputs,
+        inputs: finalInputs,
         response_mode: "streaming",
         user: userId
       };
@@ -238,10 +303,13 @@ export const aiProcessor = {
       // If 404 on Chat, try Workflow auto-switch
       if (res.status === 404 && url.includes('/chat-messages')) {
         const workflowUrl = url.replace('/chat-messages', '/workflows/run');
-        console.warn(`[AIProcessor] 404 on Chat endpoint. Trying Workflow endpoint: ${workflowUrl}`);
         
-        // Prepare workflow payload
-        const workflowInputs = { ...cleanInputs, query, text: query };
+        // Prepare workflow payload with stringified inputs
+        const workflowInputs: Record<string, string> = {};
+        Object.entries({ ...cleanInputs, query, text: query }).forEach(([key, val]) => {
+          workflowInputs[key] = typeof val === 'string' ? val : String(val);
+        });
+
         const workflowBody = {
           inputs: workflowInputs,
           response_mode: "streaming",

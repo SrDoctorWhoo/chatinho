@@ -20,19 +20,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 });
     }
 
-    // Buscar a integração configurada (OAB_GO_AUTH)
-    const integration = await prisma.externalIntegration.findFirst({
+    // Buscar a integração (pode ser OAB_GO_AUTH ou um Webhook chamado 'OAB')
+    let integration = await prisma.externalIntegration.findFirst({
       where: { type: 'OAB_GO_AUTH', isActive: true }
     });
 
     if (!integration) {
-      return NextResponse.json({ error: 'Serviço de integração não configurado' }, { status: 500 });
+      integration = await prisma.externalIntegration.findFirst({
+        where: { name: { contains: 'OAB' }, isActive: true }
+      });
     }
 
-    const config = JSON.parse(integration.config || '{}');
-    const systemUser = config.systemUsername || process.env.OAB_GO_SYSTEM_USER;
-    const systemPass = config.systemPassword || process.env.OAB_GO_SYSTEM_PASS;
-    const baseUrl = integration.baseUrl || 'https://appws.oabgo.org.br/wsapp';
+    const config = integration ? JSON.parse(integration.config || '{}') : {};
+    const systemUser = config.systemUsername || process.env.OAB_GO_SYSTEM_USER || 'oabgo';
+    const systemPass = config.systemPassword || process.env.OAB_GO_SYSTEM_PASS || 'oabgo@ti*123';
+    const baseUrl = (integration?.baseUrl) || 'https://appws.oabgo.org.br/wsapp';
 
     // 2. Auth Sistema
     const authRes = await fetch(`${baseUrl}/authenticate`, {

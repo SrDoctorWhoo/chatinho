@@ -96,7 +96,7 @@ model ChatbotFlow {
   triggerDepartmentId String?
   triggerDepartment   Department?        @relation("TriggerFlows", fields: [triggerDepartmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @default(now()) @updatedAt
+  updatedAt           DateTime           @updatedAt
   nodes               ChatbotNode[]
   instances           WhatsappInstance[] @relation("FlowInstances")
 }
@@ -117,7 +117,7 @@ model ChatbotNode {
   order               Int                    @default(0)
   payloadMapping      String?              @db.NVarChar(Max)
   createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @default(now()) @updatedAt
+  updatedAt           DateTime               @updatedAt
   flow                ChatbotFlow          @relation(fields: [flowId], references: [id], onDelete: Cascade)
   integration         ExternalIntegration? @relation(fields: [integrationId], references: [id])
   routingDepartment   Department?          @relation("DepartmentRouting", fields: [routingDepartmentId], references: [id])

@@ -34,7 +34,13 @@ export async function checkAndTriggerDepartmentFlow(conversationId: string, depa
           : `${conversation.contact.number}@s.whatsapp.net`;
 
         console.log(`[TriggerHandler] Disparando fluxo "${triggerFlow.name}" para ${remoteJid} no setor ${departmentId}`);
-        await botEngine.triggerFlow(triggerFlow.id, conversationId, instance.name, remoteJid);
+        await botEngine.triggerFlow(triggerFlow.id, {
+          conversationId,
+          instanceName: instance.name,
+          remoteJid,
+          platform: conversation.platform,
+          variables: JSON.parse(conversation.variables || '{}')
+        });
         return true;
       }
     }

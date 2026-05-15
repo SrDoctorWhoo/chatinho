@@ -796,6 +796,17 @@ export default function SettingsPage() {
                         <option value="WEBHOOK">Custom Webhook</option>
                       </select>
                     </div>
+                    {integForm.type === 'WEBHOOK' && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Método HTTP</label>
+                        <select value={integForm.method} onChange={(e) => setIntegForm({...integForm, method: e.target.value})} className="w-full px-6 py-4 bg-slate-950 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-blue-500/20">
+                          <option value="POST">POST</option>
+                          <option value="GET">GET</option>
+                          <option value="PUT">PUT</option>
+                          <option value="PATCH">PATCH</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   {integForm.type === 'OAB_GO_AUTH' && (

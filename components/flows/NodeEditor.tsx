@@ -13,7 +13,8 @@ import {
   Plus,
   ArrowRight,
   Sparkles,
-  Share2
+  Share2,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,7 @@ export default function NodeEditor({
     { id: 'LIST', label: 'Lista Dinâmica', icon: Layout, color: 'emerald' },
     { id: 'WAIT_INPUT', label: 'Coletar Dados', icon: Type, color: 'amber' },
     { id: 'AI_DIFY', label: 'IA & Webhook', icon: Bot, color: 'indigo' },
+    { id: 'SQL_QUERY', label: 'Consulta SQL', icon: Globe, color: 'rose' },
     { id: 'TRANSFER', label: 'Transferência', icon: User, color: 'orange' }
   ];
 
@@ -98,6 +100,11 @@ export default function NodeEditor({
               )}>
                 {currentType.label}
               </span>
+              {(node.content?.includes('{{auth_login_link}}') || node.content?.includes('{{auth_oab_link}}')) && (
+                <span className="px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-[0.2em] bg-amber-500/20 text-amber-500 border border-amber-500/20 flex items-center gap-1">
+                  <Zap size={8} className="animate-pulse" /> Ponto de Autenticação
+                </span>
+              )}
               <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">ID: {node.id}</span>
             </div>
             <h2 className="text-lg md:text-xl font-black text-white tracking-tight">
@@ -160,7 +167,19 @@ export default function NodeEditor({
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
-                    {['{{nome}}', '{{saudacao}}', '{{protocolo}}'].map((v) => (
+                    {[
+                      '{{nome}}', '{{saudacao}}', '{{protocolo}}',
+                      // Se QUALQUER nó deste fluxo tiver uma integração, mostra as variáveis de login
+                      ...(nodes || []).some(n => n.integrationId) 
+                        ? ['{{cpfCnpj}}', '{{email}}', '{{isAdvogado}}', '{{api_token}}', '{{idPessoa}}'] 
+                        : [],
+                      // Escanear variáveis de outros nós de input no mesmo fluxo
+                      ...(nodes || [])
+                        .filter(n => n.type === 'WAIT_INPUT' && n.variableName)
+                        .map(n => `{{${n.variableName}}}`)
+                    ]
+                    .filter((v, i, self) => self.indexOf(v) === i) // Remover duplicados
+                    .map((v) => (
                       <button
                         key={v}
                         onClick={() => insertVariable(v)}
@@ -169,6 +188,28 @@ export default function NodeEditor({
                         {v}
                       </button>
                     ))}
+                  </div>
+
+                  <div className="space-y-2 pt-4 border-t border-white/5">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1">Vincular Integração (Opcional)</label>
+                    <div className="relative group">
+                      <select 
+                        className="w-full p-3 bg-slate-950 border border-white/5 rounded-xl text-xs outline-none appearance-none font-bold text-blue-400 focus:border-blue-500 transition-all pr-10 shadow-inner"
+                        value={node.integrationId || ''}
+                        onChange={(e) => onUpdate(node.id, { integrationId: e.target.value })}
+                      >
+                        <option value="">Nenhuma selecionada</option>
+                        {integrations.map((integ: any) => (
+                          <option key={integ.id} value={integ.id}>{integ.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover:text-blue-500 transition-colors">
+                        <Globe size={14} />
+                      </div>
+                    </div>
+                    <p className="text-[8px] text-slate-600 font-bold italic px-1">
+                      Necessário para gerar links de login dinâmicos usando {'{{auth_login_link}}'}.
+                    </p>
                   </div>
 
                   <NextStepSelector
@@ -392,6 +433,55 @@ export default function NodeEditor({
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover:text-orange-500 transition-colors">
                       <User size={16} />
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {node.type === 'SQL_QUERY' && (
+                <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                  <div className="p-5 bg-rose-500/5 rounded-2xl border border-rose-500/20 space-y-4">
+                    <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                          <Globe size={16} className="text-rose-500" />
+                          <label className="text-[9px] font-black text-slate-100 uppercase tracking-widest">Consulta SQL (Sankhya)</label>
+                       </div>
+                       <span className="px-2 py-0.5 rounded bg-rose-500/20 text-[7px] font-black text-rose-500 uppercase">ReadOnly Access</span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <textarea
+                        value={node.content}
+                        onChange={(e) => onUpdate(node.id, { content: e.target.value })}
+                        placeholder="SELECT * FROM SANKHYA.TABELA WHERE CODPARC = {{codparcColaborador}}"
+                        rows={6}
+                        className="w-full bg-slate-950 border border-rose-500/30 rounded-xl px-4 py-3 text-xs font-mono font-bold text-rose-400 placeholder:text-rose-900/30 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-inner resize-none custom-scrollbar"
+                      />
+                      <div className="flex items-center gap-4 text-[9px] font-black text-slate-600 uppercase tracking-widest px-1">
+                        <span>Variáveis Disponíveis:</span>
+                        <div className="flex gap-2">
+                          {['{{codparcColaborador}}', '{{cpfCnpj}}'].map(v => (
+                            <button 
+                              key={v}
+                              onClick={() => insertVariable(v)}
+                              className="text-rose-500 hover:text-rose-400 transition-colors"
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-950/40 rounded-xl border border-white/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                       <Sparkles size={14} className="text-amber-500" />
+                       <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Como usar o resultado</h4>
+                    </div>
+                    <p className="text-[9px] text-slate-500 leading-relaxed font-bold">
+                      Os resultados serão salvos na variável <code className="text-rose-400">{"{{sql_result}}"}</code> em formato JSON. 
+                      O Dify poderá ler essa lista para listar os boletos para o cliente.
+                    </p>
                   </div>
                 </div>
               )}

@@ -25,10 +25,13 @@ export async function POST(req: Request) {
 
     const flow = await prisma.chatbotFlow.create({
       data: {
-        name,
-        description,
+        name: String(name),
+        description: description ? String(description) : null,
+        isActive: true,
+        isDefault: false,
+        triggerKeywords: "",
         triggerDepartmentId: triggerDepartmentId || null,
-        instances: instanceIds?.length ? {
+        instances: (instanceIds && Array.isArray(instanceIds) && instanceIds.length > 0) ? {
           connect: instanceIds.map((id: string) => ({ id }))
         } : undefined
       }

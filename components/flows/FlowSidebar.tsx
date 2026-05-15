@@ -180,12 +180,20 @@ export default function FlowSidebar({
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className={cn(
-                          "text-[7px] font-black uppercase tracking-[0.1em] mb-0.5",
-                          isSelected ? "text-blue-500" : "text-slate-500"
-                        )}>
-                          Passo {idx + 1}
-                        </p>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <p className={cn(
+                            "text-[7px] font-black uppercase tracking-[0.1em]",
+                            isSelected ? "text-blue-500" : "text-slate-500"
+                          )}>
+                            Passo {idx + 1}
+                          </p>
+                          {(node.content?.includes('{{auth_login_link}}') || node.content?.includes('{{auth_oab_link}}')) && (
+                            <div className="flex items-center gap-1 px-1 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              <Zap size={6} className="animate-pulse fill-amber-500" />
+                              <span className="text-[5px] font-black uppercase">Auth</span>
+                            </div>
+                          )}
+                        </div>
                         <p className={cn(
                           "text-[11px] font-bold truncate leading-tight",
                           isSelected ? "text-white" : "text-slate-400"

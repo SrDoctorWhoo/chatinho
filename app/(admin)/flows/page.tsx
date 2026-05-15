@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { GitBranch, Plus, Play, Pause, Trash2, Edit2, X } from 'lucide-react';
+import { GitBranch, Plus, Play, Pause, Trash2, Edit2, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -40,21 +40,30 @@ export default function FlowsPage() {
     fetchFlows();
   }, []);
 
+  const [isCreating, setIsCreating] = useState(false);
   const handleCreateFlow = async () => {
     if (!newFlow.name) return;
+    setIsCreating(true);
     try {
       const res = await fetch('/api/flows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newFlow)
       });
+      
       if (res.ok) {
         setNewFlow({ name: '', description: '' });
         setShowCreateModal(false);
         fetchFlows();
+      } else {
+        const errorData = await res.json();
+        alert(`Erro ao criar fluxo: ${errorData.error || 'Erro desconhecido no servidor'}`);
       }
     } catch (err) {
       console.error(err);
+      alert('Falha na conexão com o servidor ao tentar criar o fluxo.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -222,10 +231,18 @@ export default function FlowsPage() {
                   Cancelar
                 </button>
                 <button 
+                  disabled={isCreating}
                   onClick={handleCreateFlow}
-                  className="flex-1 py-5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-[11px] rounded-2xl transition-all shadow-2xl shadow-blue-600/30 border border-white/10"
+                  className="flex-1 py-5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-[11px] rounded-2xl transition-all shadow-2xl shadow-blue-600/30 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Criar Fluxo
+                  {isCreating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    'Criar Fluxo'
+                  )}
                 </button>
               </div>
             </div>

@@ -77,7 +77,7 @@ export async function POST(req: Request) {
         messages: [{ role: "user", content: processedMessage }]
       });
     } else {
-      // Webhook
+      // WEBHOOK / GENERIC_HTTP
       if (method === 'GET') {
         const params = new URLSearchParams({
           message: processedMessage,
@@ -85,11 +85,20 @@ export async function POST(req: Request) {
         });
         url = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`;
       } else {
-        options.body = JSON.stringify({
-          message: processedMessage,
-          variables: variables || {},
-          isTest: true
-        });
+        // Se houver payloadMapping, usa ele. Se não, usa o padrão.
+        if (body.payloadMapping) {
+          try {
+            options.body = replaceVars(body.payloadMapping);
+          } catch (e) {
+            options.body = JSON.stringify({ message: processedMessage, variables, isTest: true });
+          }
+        } else {
+          options.body = JSON.stringify({
+            message: processedMessage,
+            variables: variables || {},
+            isTest: true
+          });
+        }
       }
     }
 

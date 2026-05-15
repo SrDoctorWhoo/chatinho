@@ -81,6 +81,12 @@ export async function processInboundConversationMessage(params: {
     }
 
     const { generateProtocol } = await import('./protocol');
+    
+    // Buscar o ID do setor BOT
+    const botDept = await prisma.department.findFirst({
+      where: { name: { contains: 'BOT' } }
+    });
+
     conversation = await prisma.conversation.create({
       data: {
         contactId: contact.id,
@@ -88,6 +94,7 @@ export async function processInboundConversationMessage(params: {
         status: flow ? 'BOT' : 'QUEUED',
         isBotActive: !!flow,
         protocol: generateProtocol(),
+        departmentId: flow ? botDept?.id : null // Vincula ao setor BOT se houver fluxo
       },
     });
   } else if (!conversation.assignedToId && !conversation.isBotActive && conversation.status !== 'CLOSED') {
